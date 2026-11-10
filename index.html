@@ -53,7 +53,7 @@
   <script type="text/babel" data-type="module">
     import React, { useState, useEffect } from 'react';
     import { createRoot } from 'react-dom/client';
-    import { Home, ShoppingCart, CheckSquare, Calendar as CalendarIcon, Grid, Plus, Trash2, Edit3, HeartPulse, User, Ruler, ChevronDown, Wind, Thermometer, Droplets, CloudRain, Check, X, Clock, Utensils, Sparkles, Loader2, Copy, LogOut, Sun, Cloud, CloudFog, CloudSnow, CloudLightning } from 'lucide-react';
+    import { Home, ShoppingCart, CheckSquare, Calendar as CalendarIcon, Grid, Plus, Trash2, Edit3, HeartPulse, User, Ruler, ChevronDown, Wind, Thermometer, Droplets, CloudRain, Check, X, Clock, Utensils, Sparkles, Loader2, Copy, LogOut, Sun, Cloud, CloudFog, CloudSnow, CloudLightning, Info } from 'lucide-react';
     
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -166,7 +166,6 @@
                 await signInWithEmailAndPassword(auth, email, password); 
             } 
         } catch (err) { 
-            // Tydliga svenska felmeddelanden istället för koder
             if (err.code === 'auth/email-already-in-use') {
                 setError('E-postadressen används redan. Klicka på "Har ni redan ett konto? Logga in"!');
             } else if (err.code === 'auth/weak-password') {
@@ -239,6 +238,8 @@
 
       // Real Weather Fetching
       const [realWeather, setRealWeather] = useState(null);
+      const [weatherTip, setWeatherTip] = useState('Laddar tips...');
+
       useEffect(() => {
         const fetchWeather = async () => {
           try {
@@ -271,8 +272,21 @@
                 return { time: labels[idx], temp: `${temp}°`, icon: getWeatherIcon(code) };
             });
             setRealWeather(mapped);
+
+            // Logik för vädertips
+            const codes = times.map(h => weatherData.hourly.weather_code[h]);
+            let tip = "Ha en fantastisk dag! ☀️";
+            if (codes.some(c => c >= 71 && c <= 77)) tip = "Snö på ingång! På med varma kläder och mössa. ❄️";
+            else if (codes.some(c => c >= 51 && c <= 67)) tip = "Det vankas regn! Glöm inte regnkläder och stövlar. ☔";
+            else if (codes.some(c => c >= 95)) tip = "Åska i luften! Mys inne idag. 🌩️";
+            else if (codes.every(c => c === 0 || c === 1)) tip = "Soligt idag! Glöm inte solglasögonen! 😎";
+            else if (codes.some(c => c === 45 || c === 48)) tip = "Dimmigt ute. Kör försiktigt i trafiken! 🌫️";
+            else tip = "Molnigt men skönt. Perfekt för en promenad! ☁️";
+            setWeatherTip(tip);
+
           } catch (e) {
             console.error("Väderfel:", e);
+            setWeatherTip('Kunde inte hämta vädertips.');
           }
         };
         fetchWeather();
@@ -303,7 +317,7 @@
                 </div>
                 <div className="bg-white/20 p-3.5 rounded-2xl backdrop-blur-md shadow-inner"><Wind size={28} /></div>
             </div>
-            <div className="flex justify-between bg-white/20 rounded-2xl p-4 backdrop-blur-md relative z-10 shadow-sm">
+            <div className="flex justify-between bg-white/20 rounded-2xl p-4 backdrop-blur-md relative z-10 shadow-sm mb-3">
               {weatherDisplay.map((w, i) => (
                   <div key={i} className="flex flex-col items-center gap-2">
                       <span className="text-[11px] font-black uppercase tracking-wider text-white/80">{w.time}</span>
@@ -311,6 +325,9 @@
                       <span className="font-black text-base">{w.temp}</span>
                   </div>
               ))}
+            </div>
+            <div className="bg-white/20 p-3 rounded-xl backdrop-blur-md relative z-10 shadow-sm text-xs font-bold flex items-center gap-2">
+                <Info size={16} className="shrink-0" /> {weatherTip}
             </div>
           </div>
 
@@ -372,34 +389,44 @@
             </div>
           </div>
           
-          {/* Snabblänkar */}
-          <div className="grid grid-cols-2 gap-4 mt-6">
-            <div onClick={() => setActiveTab('shopping')} className="bg-white rounded-3xl p-5 shadow-sm border cursor-pointer">
-                <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-black text-[#1D2538]">Inköp</h3>
-                    <span className="bg-[#E55835] text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center">{activeShopping.length}</span>
+          {/* Snabblänkar (Nu som fullbredds-kort med fritext!) */}
+          <div className="flex flex-col gap-4 mt-6">
+            <div onClick={() => setActiveTab('shopping')} className="bg-white rounded-3xl p-5 shadow-sm border cursor-pointer hover:border-[#1D2538]/20 transition-all">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-black text-[#1D2538] text-xl">Inköp (Övrigt)</h3>
+                    <span className="bg-[#E55835] text-white text-[12px] font-black w-7 h-7 rounded-full flex items-center justify-center">{activeShopping.length}</span>
                 </div>
-                <ul className="space-y-2">
-                    {activeShopping.slice(0, 3).map(i => <li key={i.id} className="text-xs font-bold text-[#1D2538]/60 truncate flex items-center gap-1.5 before:content-[''] before:w-1.5 before:h-1.5 before:bg-[#1D2538]/20 before:rounded-full">{i.title}</li>)}
-                    {activeShopping.length === 0 && <li className="text-xs font-bold text-[#1D2538]/30">Inget på listan</li>}
+                <ul className="space-y-3">
+                    {activeShopping.slice(0, 3).map(i => (
+                      <li key={i.id} className="flex flex-col border-b border-[#1D2538]/5 pb-2 last:border-0 last:pb-0">
+                        <div className="text-sm font-bold text-[#1D2538] flex items-center gap-2 before:content-[''] before:w-1.5 before:h-1.5 before:bg-[#E55835] before:rounded-full">
+                          {i.title}
+                        </div>
+                        {i.notes && <p className="text-xs font-semibold text-[#1D2538]/50 pl-3.5 mt-0.5 line-clamp-1">{i.notes}</p>}
+                      </li>
+                    ))}
+                    {activeShopping.length === 0 && <li className="text-sm font-bold text-[#1D2538]/30">Inget på listan</li>}
                 </ul>
             </div>
             
-            <div onClick={() => setActiveTab('todo')} className="bg-white rounded-3xl p-5 shadow-sm border cursor-pointer">
-                <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-black text-[#1D2538]">Att göra</h3>
-                    <span className="bg-[#1D2538] text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center">{activeTodos.length}</span>
+            <div onClick={() => setActiveTab('todo')} className="bg-white rounded-3xl p-5 shadow-sm border cursor-pointer hover:border-[#1D2538]/20 transition-all">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-black text-[#1D2538] text-xl">Att göra</h3>
+                    <span className="bg-[#1D2538] text-white text-[12px] font-black w-7 h-7 rounded-full flex items-center justify-center">{activeTodos.length}</span>
                 </div>
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                     {activeTodos.slice(0, 3).map(t => {
                       const isMyTodo = localProfileId && t.memberId === localProfileId;
                       return (
-                        <li key={t.id} className={`text-xs font-bold truncate flex items-center gap-1.5 before:content-[''] before:w-1.5 before:h-1.5 before:rounded-full ${isMyTodo ? 'text-[#E55835] before:bg-[#E55835]' : 'text-[#1D2538]/60 before:bg-[#1D2538]/20'}`}>
-                            {t.title} {isMyTodo && <span className="text-[9px] bg-[#E55835]/10 px-1 rounded ml-1">Din</span>}
+                        <li key={t.id} className="flex flex-col border-b border-[#1D2538]/5 pb-2 last:border-0 last:pb-0">
+                          <div className={`text-sm font-bold flex items-center gap-2 before:content-[''] before:w-1.5 before:h-1.5 before:rounded-full ${isMyTodo ? 'text-[#E55835] before:bg-[#E55835]' : 'text-[#1D2538] before:bg-[#1D2538]/30'}`}>
+                              {t.title} {isMyTodo && <span className="text-[9px] bg-[#E55835]/10 px-1 rounded ml-1 text-[#E55835]">Din</span>}
+                          </div>
+                          {t.notes && <p className="text-xs font-semibold text-[#1D2538]/50 pl-3.5 mt-0.5 line-clamp-1">{t.notes}</p>}
                         </li>
                       );
                     })}
-                    {activeTodos.length === 0 && <li className="text-xs font-bold text-[#1D2538]/30">Inga uppgifter</li>}
+                    {activeTodos.length === 0 && <li className="text-sm font-bold text-[#1D2538]/30">Inga uppgifter</li>}
                 </ul>
             </div>
           </div>
@@ -417,6 +444,7 @@
       const [copyStatus, setCopyStatus] = useState('');
       
       const [title, setTitle] = useState(''); 
+      const [notes, setNotes] = useState(''); // NYTT: Fritextfält
       const [selectedMember, setSelectedMember] = useState(''); 
       const [category, setCategory] = useState(''); 
       const [details, setDetails] = useState(''); 
@@ -446,21 +474,21 @@
           if (!title.trim()) return; 
           
           if (editingId) { 
-              updateData('shoppingItems', items.map(item => item.id === editingId ? { ...item, title, memberId: selectedMember, buyerId, category, details, link } : item)); 
+              updateData('shoppingItems', items.map(item => item.id === editingId ? { ...item, title, notes, memberId: selectedMember, buyerId, category, details, link } : item)); 
               setEditingId(null); 
           } else { 
-              updateData('shoppingItems', [...items, { id: generateId(), title, memberId: selectedMember, buyerId, category, details, link, completed: false }]); 
+              updateData('shoppingItems', [...items, { id: generateId(), title, notes, memberId: selectedMember, buyerId, category, details, link, completed: false }]); 
           } 
           resetForm(); 
       };
       
       const editItem = (item) => { 
-          setTitle(item.title); setSelectedMember(item.memberId || ''); setBuyerId(item.buyerId || ''); setCategory(item.category || ''); setDetails(item.details || ''); setLink(item.link || ''); setEditingId(item.id); setIsExpanded(true); 
+          setTitle(item.title); setNotes(item.notes || ''); setSelectedMember(item.memberId || ''); setBuyerId(item.buyerId || ''); setCategory(item.category || ''); setDetails(item.details || ''); setLink(item.link || ''); setEditingId(item.id); setIsExpanded(true); 
       };
       
       const toggleComplete = (id) => updateData('shoppingItems', items.map(i => i.id === id ? { ...i, completed: !i.completed } : i));
       const deleteItem = (id) => updateData('shoppingItems', items.filter(i => i.id !== id));
-      const resetForm = () => { setTitle(''); setSelectedMember(''); setBuyerId(''); setCategory(''); setDetails(''); setLink(''); setIsExpanded(false); setEditingId(null); };
+      const resetForm = () => { setTitle(''); setNotes(''); setSelectedMember(''); setBuyerId(''); setCategory(''); setDetails(''); setLink(''); setIsExpanded(false); setEditingId(null); };
 
       const [groceryAmount, setGroceryAmount] = useState(''); 
       const [groceryItem, setGroceryItem] = useState(''); 
@@ -496,7 +524,7 @@
               <>
                 <form onSubmit={handleSave} className="bg-white rounded-3xl shadow-sm border p-4 mb-6">
                     <div className="flex gap-2">
-                        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Vad ska inhandlas? (Fritext)" className="flex-1 bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold outline-none" />
+                        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Vad ska inhandlas? (T.ex. Stövlar)" className="flex-1 bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold outline-none" />
                         <button type="submit" disabled={!title.trim()} className="bg-[#581625] text-white px-5 rounded-2xl font-bold disabled:opacity-50">{editingId ? 'Spara' : 'Lägg till'}</button>
                     </div>
                     {isExpanded ? (
@@ -513,21 +541,25 @@
                             </div>
                             <div className="flex gap-3 mt-3">
                                 <select value={category} onChange={handleCategoryChange} disabled={!selectedMember} className="w-full bg-[#F7F4EE] rounded-xl px-3 py-2.5 font-bold text-sm outline-none appearance-none disabled:opacity-50">
-                                    <option value="">Välj klädkategori...</option>
+                                    <option value="">Välj klädkategori (fyller i strl automatiskt)</option>
                                     {availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                 </select>
                             </div>
                             <div className="flex gap-3">
                                 <input value={details} onChange={e => setDetails(e.target.value)} placeholder="Detaljer/Storlek" className="flex-1 bg-[#F7F4EE] rounded-xl px-3 py-2.5 font-bold text-sm outline-none" />
-                                <input value={link} onChange={e => setLink(e.target.value)} placeholder="Länk (frivillig)" className="flex-1 bg-[#F7F4EE] rounded-xl px-3 py-2.5 font-bold text-sm outline-none" />
+                                <input value={link} onChange={e => setLink(e.target.value)} placeholder="Länk till butik (frivillig)" className="flex-1 bg-[#F7F4EE] rounded-xl px-3 py-2.5 font-bold text-sm outline-none" />
                             </div>
-                            <div className="flex justify-end">
+                            
+                            {/* NYTT FRITEXTFÄLT */}
+                            <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Anteckningar / Mer information (frivilligt)" className="w-full bg-[#F7F4EE] px-4 py-3 rounded-xl font-bold text-sm outline-none resize-none mt-2" rows="2"></textarea>
+                            
+                            <div className="flex justify-end mt-2">
                                 <button type="button" onClick={resetForm} className="text-xs font-bold text-[#1D2538]/40 hover:text-[#1D2538]">Avbryt / Stäng</button>
                             </div>
                         </div>
                     ) : (
                         <button type="button" onClick={() => setIsExpanded(true)} className="mt-3 text-xs font-bold text-[#E55835] flex items-center gap-1 ml-1">
-                            <Plus size={14} /> Fler detaljer (Person, Kategori, Länk)
+                            <Plus size={14} /> Fler detaljer, Fritext & Länk
                         </button>
                     )}
                 </form>
@@ -538,6 +570,7 @@
                             <button onClick={() => toggleComplete(item.id)} className="mt-1 flex-shrink-0 w-6 h-6 rounded-full border-2 border-[#1D2538]/20 hover:border-[#E55835]"></button>
                             <div className="flex-1">
                                 <h4 className="font-black text-lg leading-tight">{item.title}</h4>
+                                {item.notes && <p className="text-xs font-semibold text-[#1D2538]/60 mt-1">{item.notes}</p>}
                                 <div className="flex flex-wrap items-center gap-2 mt-2">
                                     {item.memberId && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${getTagColor(members.find(m => m.id === item.memberId)?.name)}`}>För: {members.find(m => m.id === item.memberId)?.name || 'Okänd'}</span>}
                                     {item.buyerId && <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-[#1D2538]/10 text-[#1D2538]">Köps av: {members.find(m => m.id === item.buyerId)?.name}</span>}
@@ -753,6 +786,7 @@
     // --- ATT GÖRA (TODO) ---
     function TodoList({ todos, members, updateData }) {
         const [title, setTitle] = useState('');
+        const [notes, setNotes] = useState(''); // NYTT: Fritextfält
         const [memberId, setMemberId] = useState('');
         const [dueDate, setDueDate] = useState('');
 
@@ -762,8 +796,9 @@
         const handleSave = (e) => {
             e.preventDefault();
             if (!title.trim()) return;
-            updateData('todos', [...todos, { id: generateId(), title, memberId, dueDate, completed: false }]);
+            updateData('todos', [...todos, { id: generateId(), title, notes, memberId, dueDate, completed: false }]);
             setTitle('');
+            setNotes('');
             setMemberId('');
             setDueDate('');
         };
@@ -774,7 +809,11 @@
         return (
             <div className="p-4 pb-32 h-full overflow-y-auto">
                 <form onSubmit={handleSave} className="bg-white rounded-3xl shadow-sm border p-4 mb-6">
-                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Lägg till ny uppgift..." className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold outline-none mb-3" />
+                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Vad ska göras?" className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold outline-none mb-3" />
+                    
+                    {/* NYTT FRITEXTFÄLT */}
+                    <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Anteckningar / Mer information (frivilligt)" className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold text-sm outline-none mb-3 resize-none" rows="2"></textarea>
+                    
                     <div className="flex gap-2">
                         <select value={memberId} onChange={e => setMemberId(e.target.value)} className="flex-1 bg-[#F7F4EE] px-3 py-3 rounded-2xl font-bold text-sm outline-none appearance-none">
                             <option value="">Vem ska göra detta?</option>
@@ -790,8 +829,9 @@
                         <div key={todo.id} className="bg-white p-4 rounded-3xl shadow-sm border flex gap-4 items-center">
                             <button onClick={() => toggleComplete(todo.id)} className="flex-shrink-0 w-6 h-6 rounded-full border-2 border-[#1D2538]/20 hover:border-[#E55835]"></button>
                             <div className="flex-1">
-                                <h4 className="font-bold leading-tight">{todo.title}</h4>
-                                <div className="flex items-center flex-wrap gap-2 mt-1">
+                                <h4 className="font-bold leading-tight text-lg">{todo.title}</h4>
+                                {todo.notes && <p className="text-xs font-semibold text-[#1D2538]/60 mt-1">{todo.notes}</p>}
+                                <div className="flex items-center flex-wrap gap-2 mt-2">
                                     {todo.memberId && <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-lg ${getTagColor(members.find(m => m.id === todo.memberId)?.name)}`}>{members.find(m => m.id === todo.memberId)?.name}</span>}
                                     {todo.dueDate && <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-lg bg-[#F7F4EE] text-[#1D2538]">Senast: {todo.dueDate}</span>}
                                 </div>
