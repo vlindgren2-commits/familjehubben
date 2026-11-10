@@ -122,9 +122,17 @@
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
           if (docSnap.exists()) {
             const fetched = docSnap.data();
-            if(!fetched.groceries) fetched.groceries = [];
-            if(!fetched.meals) fetched.meals = initialData.meals;
-            setData(fetched);
+            
+            // SKYDDSNÄT: Slår ihop din data med standardmallen ifall något saknas
+            const safeData = {
+                ...initialData,
+                ...fetched,
+                settings: { ...initialData.settings, ...(fetched.settings || {}) },
+                meals: fetched.meals || initialData.meals,
+                groceries: fetched.groceries || []
+            };
+            
+            setData(safeData);
           } else {
             setDoc(docRef, initialData).catch(e => console.error("Skapandefel:", e));
             setData(initialData);
