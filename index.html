@@ -53,7 +53,7 @@
   <script type="text/babel" data-type="module">
     import React, { useState, useEffect } from 'react';
     import { createRoot } from 'react-dom/client';
-    import { Home, ShoppingCart, CheckSquare, Calendar as CalendarIcon, Grid, Plus, Trash2, Edit3, HeartPulse, User, Ruler, ChevronDown, Wind, Thermometer, Droplets, CloudRain, Check, X, Clock, Utensils, Sparkles, Loader2, Copy, LogOut } from 'lucide-react';
+    import { Home, ShoppingCart, CheckSquare, Calendar as CalendarIcon, Grid, Plus, Trash2, Edit3, HeartPulse, User, Ruler, ChevronDown, Wind, Thermometer, Droplets, CloudRain, Check, X, Clock, Utensils, Sparkles, Loader2, Copy, LogOut, Sun, Cloud, CloudFog, CloudSnow, CloudLightning } from 'lucide-react';
     
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -223,7 +223,7 @@
     }
 
     // --- DASHBOARD ---
-    function Dashboard({ events, todos, shoppingItems, healthLogs, weatherConfig, setActiveTab, members, meals }) {
+    function Dashboard({ events, todos, shoppingItems, healthLogs, weatherConfig, setActiveTab, members, meals, localProfileId }) {
       const today = getLocalToday();
       const upcomingEvents = events.filter(e => e.fromDate >= today).sort((a, b) => { 
           if (a.fromDate !== b.fromDate) return a.fromDate.localeCompare(b.fromDate); 
@@ -237,8 +237,62 @@
       const daysArr = ['Sön', 'Mån', 'Tis', 'Ons', 'Tors', 'Fre', 'Lör']; 
       const todaysMeal = meals?.current?.[daysArr[dayIndex]];
 
+      // Real Weather Fetching
+      const [realWeather, setRealWeather] = useState(null);
+      useEffect(() => {
+        const fetchWeather = async () => {
+          try {
+            const city = weatherConfig?.city || 'Stockholm';
+            const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=sv`);
+            const geoData = await geoRes.json();
+            if (!geoData.results?.length) return;
+            const { latitude, longitude } = geoData.results[0];
+
+            const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,weather_code&timezone=auto&forecast_days=1`);
+            const weatherData = await weatherRes.json();
+
+            // Extract hours: 09:00 (Fm), 12:00 (Lunch), 15:00 (Em), 19:00 (Kväll)
+            const times = [9, 12, 15, 19];
+            const labels = ['Fm', 'Lunch', 'Em', 'Kväll'];
+            
+            const getWeatherIcon = (code) => {
+                if (code === 0) return <Sun size={22} />;
+                if (code > 0 && code <= 3) return <Cloud size={22} />;
+                if (code === 45 || code === 48) return <CloudFog size={22} />;
+                if (code >= 51 && code <= 67) return <CloudRain size={22} />;
+                if (code >= 71 && code <= 77) return <CloudSnow size={22} />;
+                if (code >= 95) return <CloudLightning size={22} />;
+                return <Cloud size={22} />;
+            };
+
+            const mapped = times.map((hour, idx) => {
+                const temp = Math.round(weatherData.hourly.temperature_2m[hour]);
+                const code = weatherData.hourly.weather_code[hour];
+                return { time: labels[idx], temp: `${temp}°`, icon: getWeatherIcon(code) };
+            });
+            setRealWeather(mapped);
+          } catch (e) {
+            console.error("Väderfel:", e);
+          }
+        };
+        fetchWeather();
+      }, [weatherConfig?.city]);
+
+      const weatherDisplay = realWeather || [
+          { time: 'Fm', temp: '--', icon: <Cloud size={22}/> }, { time: 'Lunch', temp: '--', icon: <Cloud size={22}/> }, 
+          { time: 'Em', temp: '--', icon: <Cloud size={22}/> }, { time: 'Kväll', temp: '--', icon: <Cloud size={22}/> }
+      ];
+
+      const localUser = members.find(m => m.id === localProfileId);
+
       return (
         <div className="p-5 pb-32 h-full overflow-y-auto space-y-6">
+          
+          {/* Personlig hälsning */}
+          {localUser && (
+              <h2 className="text-xl font-black text-[#1D2538] mt-2 mb-[-10px]">Hej {localUser.name}! 👋</h2>
+          )}
+
           {/* Väder */}
           <div className="bg-gradient-to-br from-[#A7CEF6] to-[#4B88C4] rounded-[2rem] p-5 text-white shadow-xl relative overflow-hidden">
             <div className="absolute -top-10 -right-10 w-40 h-40 bg-white rounded-full opacity-20 blur-3xl"></div>
@@ -250,12 +304,7 @@
                 <div className="bg-white/20 p-3.5 rounded-2xl backdrop-blur-md shadow-inner"><Wind size={28} /></div>
             </div>
             <div className="flex justify-between bg-white/20 rounded-2xl p-4 backdrop-blur-md relative z-10 shadow-sm">
-              {[
-                  { time: 'Fm', temp: '14°', icon: <CloudRain size={22}/> }, 
-                  { time: 'Lunch', temp: '18°', icon: <Thermometer size={22}/> }, 
-                  { time: 'Em', temp: '17°', icon: <Wind size={22}/> }, 
-                  { time: 'Kväll', temp: '12°', icon: <Droplets size={22}/> }
-              ].map((w, i) => (
+              {weatherDisplay.map((w, i) => (
                   <div key={i} className="flex flex-col items-center gap-2">
                       <span className="text-[11px] font-black uppercase tracking-wider text-white/80">{w.time}</span>
                       {w.icon}
@@ -301,8 +350,10 @@
                   const isToday = event.fromDate === today; 
                   const appliesTo = members.find(m => m.id === event.appliesToId); 
                   const responsible = members.find(m => m.id === event.responsibleId);
+                  const amIResponsible = localProfileId && event.responsibleId === localProfileId;
+
                   return (
-                    <div key={event.id} className={`bg-white rounded-3xl p-4 shadow-sm border-l-4 ${isToday ? 'border-l-[#E55835]' : 'border-l-[#1D2538]/30'} border-y border-r flex gap-4 items-center`}>
+                    <div key={event.id} className={`bg-white rounded-3xl p-4 shadow-sm border-l-4 ${isToday ? 'border-l-[#E55835]' : 'border-l-[#1D2538]/30'} ${amIResponsible ? 'border-r-4 border-r-[#581625] bg-[#581625]/5' : ''} border-y border-r flex gap-4 items-center`}>
                       <div className={`flex flex-col items-center justify-center rounded-2xl px-2 py-2 min-w-[70px] ${isToday ? 'bg-[#E55835]/10 text-[#E55835]' : 'bg-[#F7F4EE] text-[#1D2538]/50'}`}>
                           <span className="text-xs font-black">{isToday ? 'IDAG' : event.fromDate}</span>
                           <span className="text-[10px] font-bold mt-0.5">{event.fromTime || 'Heldag'}</span>
@@ -311,7 +362,7 @@
                           <h4 className="font-black text-[#1D2538] text-base leading-tight mb-2">{event.title}</h4>
                           <div className="flex flex-wrap gap-1.5">
                               {appliesTo && <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${getTagColor(appliesTo.name)}`}>För: {appliesTo.name}</span>}
-                              {responsible && <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-[#F7F4EE]">Ansvar: {responsible.name}</span>}
+                              {responsible && <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${amIResponsible ? 'bg-[#581625] text-white' : 'bg-[#F7F4EE]'}`}>Ansvar: {amIResponsible ? 'Du' : responsible.name}</span>}
                           </div>
                       </div>
                     </div>
@@ -340,7 +391,14 @@
                     <span className="bg-[#1D2538] text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center">{activeTodos.length}</span>
                 </div>
                 <ul className="space-y-2">
-                    {activeTodos.slice(0, 3).map(t => <li key={t.id} className="text-xs font-bold text-[#1D2538]/60 truncate flex items-center gap-1.5 before:content-[''] before:w-1.5 before:h-1.5 before:bg-[#1D2538]/20 before:rounded-full">{t.title}</li>)}
+                    {activeTodos.slice(0, 3).map(t => {
+                      const isMyTodo = localProfileId && t.memberId === localProfileId;
+                      return (
+                        <li key={t.id} className={`text-xs font-bold truncate flex items-center gap-1.5 before:content-[''] before:w-1.5 before:h-1.5 before:rounded-full ${isMyTodo ? 'text-[#E55835] before:bg-[#E55835]' : 'text-[#1D2538]/60 before:bg-[#1D2538]/20'}`}>
+                            {t.title} {isMyTodo && <span className="text-[9px] bg-[#E55835]/10 px-1 rounded ml-1">Din</span>}
+                        </li>
+                      );
+                    })}
                     {activeTodos.length === 0 && <li className="text-xs font-bold text-[#1D2538]/30">Inga uppgifter</li>}
                 </ul>
             </div>
@@ -886,7 +944,7 @@
     }
 
     // --- INSTÄLLNINGAR FAMILJ ---
-    function SettingsFamily({ members, settings, updateData, setActiveTab }) {
+    function SettingsFamily({ members, settings, updateData, setActiveTab, localProfileId, setLocalProfileId }) {
       const [newName, setNewName] = useState('');
       const ROLES = ['Barn', 'Mamma', 'Pappa', 'Annan'];
 
@@ -909,20 +967,33 @@
         <div className="p-4 pb-32 h-full overflow-y-auto">
           <button onClick={() => setActiveTab('menu')} className="mb-4 text-[#1D2538]/50 font-bold text-sm flex items-center gap-1 hover:text-[#1D2538]"><ChevronDown className="rotate-90" size={16}/> Tillbaka</button>
 
-          <div className="bg-white rounded-3xl shadow-sm border p-5 mb-6">
-            <h3 className="font-black text-lg text-[#1D2538] mb-4">Väder (Postnummer & Ort)</h3>
+          <div className="bg-gradient-to-r from-[#A7CEF6]/20 to-[#4B88C4]/20 rounded-3xl p-5 mb-6 border border-[#4B88C4]/30">
+            <h3 className="font-black text-lg text-[#1D2538] mb-2 flex items-center gap-2"><Sun size={20} className="text-[#4B88C4]" /> Väder & Ort</h3>
+            <p className="text-xs font-bold text-[#1D2538]/60 mb-4">Ort används för att automatiskt hämta rätt väderdata.</p>
             <div className="flex gap-3">
               <input 
                 type="text" placeholder="Postnr" value={settings.weather?.zipcode || ''} 
                 onChange={(e) => updateData('settings', { ...settings, weather: { ...settings.weather, zipcode: e.target.value } })}
-                className="w-1/3 bg-[#F7F4EE] rounded-2xl px-4 py-3 font-bold text-[#1D2538] outline-none"
+                className="w-1/3 bg-white rounded-2xl px-4 py-3 font-bold text-[#1D2538] outline-none shadow-sm"
               />
               <input 
-                type="text" placeholder="Ort" value={settings.weather?.city || ''}
+                type="text" placeholder="Ort (t.ex. Stockholm)" value={settings.weather?.city || ''}
                 onChange={(e) => updateData('settings', { ...settings, weather: { ...settings.weather, city: e.target.value } })}
-                className="flex-1 bg-[#F7F4EE] rounded-2xl px-4 py-3 font-bold text-[#1D2538] outline-none"
+                className="flex-1 bg-white rounded-2xl px-4 py-3 font-bold text-[#1D2538] outline-none shadow-sm"
               />
             </div>
+          </div>
+
+          <div className="bg-[#1D2538]/5 rounded-3xl p-5 mb-6 border border-[#1D2538]/10">
+            <h3 className="font-black text-lg text-[#1D2538] mb-2">📱 Vem använder denna telefon?</h3>
+            <p className="text-xs font-bold text-[#1D2538]/60 mb-4">Välj dig själv så lyfter appen automatiskt fram dina uppgifter på startsidan.</p>
+            <select 
+                value={localProfileId} 
+                onChange={e => { setLocalProfileId(e.target.value); localStorage.setItem('familyHubLocalProfile', e.target.value); }} 
+                className="w-full bg-white rounded-2xl px-4 py-3 font-black text-[#1D2538] outline-none shadow-sm appearance-none border border-[#1D2538]/10">
+                <option value="">-- Välj profil för denna enhet --</option>
+                {members.map(m => <option key={m.id} value={m.id}>{m.name} ({m.role})</option>)}
+            </select>
           </div>
 
           <div className="bg-[#1D2538] rounded-3xl p-6 text-white shadow-lg mb-6">
@@ -1117,6 +1188,9 @@
       const [user, setUser] = useState(null);
       const [authLoading, setAuthLoading] = useState(true);
       const [activeTab, setActiveTab] = useState('dashboard');
+      
+      // Sparad lokal profil för just den här enheten (för att lyfta fram egna tasks)
+      const [localProfileId, setLocalProfileId] = useState(localStorage.getItem('familyHubLocalProfile') || '');
 
       useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => { setUser(currentUser); setAuthLoading(false); });
@@ -1130,16 +1204,16 @@
 
       const renderContent = () => {
         switch (activeTab) {
-          case 'dashboard': return <Dashboard events={data.events} todos={data.todos} shoppingItems={data.shoppingItems} healthLogs={data.healthLogs} weatherConfig={data.settings.weather} setActiveTab={setActiveTab} members={data.members} meals={data.meals} />;
+          case 'dashboard': return <Dashboard events={data.events} todos={data.todos} shoppingItems={data.shoppingItems} healthLogs={data.healthLogs} weatherConfig={data.settings.weather} setActiveTab={setActiveTab} members={data.members} meals={data.meals} localProfileId={localProfileId} />;
           case 'shopping': return <ShoppingList items={data.shoppingItems} groceries={data.groceries} members={data.members} settings={data.settings} updateData={updateData} />;
           case 'calendar': return <Calendar events={data.events} members={data.members} updateData={updateData} />;
           case 'todo': return <TodoList todos={data.todos} members={data.members} updateData={updateData} />;
           case 'menu': return <Menu setActiveTab={setActiveTab} />;
           case 'meals': return <MealPlanner meals={data.meals} updateData={updateData} setActiveTab={setActiveTab} />;
-          case 'settings_family': return <SettingsFamily members={data.members} settings={data.settings} updateData={updateData} setActiveTab={setActiveTab} />;
+          case 'settings_family': return <SettingsFamily members={data.members} settings={data.settings} updateData={updateData} setActiveTab={setActiveTab} localProfileId={localProfileId} setLocalProfileId={setLocalProfileId} />;
           case 'settings_sizes': return <SettingsSizes settings={data.settings} updateData={updateData} setActiveTab={setActiveTab} />;
           case 'health': return <HealthTracker logs={data.healthLogs} updateData={updateData} setActiveTab={setActiveTab} />;
-          default: return <Dashboard events={data.events} todos={data.todos} shoppingItems={data.shoppingItems} healthLogs={data.healthLogs} weatherConfig={data.settings.weather} setActiveTab={setActiveTab} members={data.members} meals={data.meals} />;
+          default: return <Dashboard events={data.events} todos={data.todos} shoppingItems={data.shoppingItems} healthLogs={data.healthLogs} weatherConfig={data.settings.weather} setActiveTab={setActiveTab} members={data.members} meals={data.meals} localProfileId={localProfileId} />;
         }
       };
 
