@@ -96,13 +96,14 @@
     };
 
     function useAppSync(user) {
-      const initialData = {
-        members: [
-          { id: generateId(), name: 'Mamma', role: 'Mamma', sizes: { 'Skor': '38', 'Tröja': 'M' } },
-          { id: generateId(), name: 'Pappa', role: 'Pappa', sizes: { 'Skor': '43', 'Skjorta': 'L' } },
-          { id: generateId(), name: 'Barn', role: 'Barn', sizes: { 'Skor': '34', 'Ytterplagg': '134' }, birthDate: '2015-05-10' }
-        ],
-        shoppingItems: [], groceries: [], todos: [], events: [], healthLogs: [],
+function useAppSync() {
+  const initialData = {
+    members: [
+      { id: generateId(), name: 'Mamma', role: 'Mamma', trackCycle: true, sizes: { 'Skor': '38', 'Tröja': 'M' } },
+      { id: generateId(), name: 'Pappa', role: 'Pappa', trackCycle: false, sizes: { 'Skor': '43', 'Skjorta': 'L' } },
+      { id: generateId(), name: 'Viggo', role: 'Barn', trackCycle: false, sizes: { 'Skor': '34', 'Ytterplagg': '134' }, birthDate: '2015-05-10' }
+    ],
+    shoppingItems: [], groceries: [], todos: [], events: [], healthLogs: [],
         meals: {
             current: { 'Mån': {}, 'Tis': {}, 'Ons': {}, 'Tors': {}, 'Fre': {}, 'Lör': {}, 'Sön': {} },
             next: { 'Mån': {}, 'Tis': {}, 'Ons': {}, 'Tors': {}, 'Fre': {}, 'Lör': {}, 'Sön': {} }
@@ -1057,7 +1058,7 @@
         const startingCategories = (settings.roleCategories || {})['Barn'] || [];
         startingCategories.forEach(cat => initialSizes[cat] = '');
         
-        updateData('members', [...members, { id: generateId(), name: newName.trim(), role: 'Barn', sizes: initialSizes, birthDate: '' }]);
+        updateData('members', [...members, { id: generateId(), name: newName.trim(), role: 'Barn', trackCycle: false, sizes: initialSizes, birthDate: '' }]);
         setNewName('');
       };
 
@@ -1130,6 +1131,12 @@
                       <input type="date" value={member.birthDate || ''} onChange={e => updateMember(member.id, { birthDate: e.target.value })} className="w-full rounded-2xl bg-[#F7F4EE] px-3 py-2.5 outline-none font-bold text-sm" />
                     </div>
                   </div>
+                  
+                  <div className="flex justify-between items-center bg-[#F7F4EE] px-4 py-3 rounded-2xl mb-4">
+                    <span className="text-xs font-black text-[#1D2538]/80">Spåra Cykelkollen</span>
+                    <input type="checkbox" checked={!!member.trackCycle} onChange={e => updateMember(member.id, { trackCycle: e.target.checked })} className="w-5 h-5 accent-[#581625]" />
+                  </div>
+
                   <div className="space-y-2">
                     <p className="text-[10px] font-black uppercase text-[#1D2538]/40 ml-1">Storlekar ({role})</p>
                     {activeCategories.map(key => (
@@ -1199,16 +1206,37 @@
 
     // --- CYKELKOLLEN (Förutspår Cykel & Mående) ---
     function HealthTracker({ logs, members, updateData, setActiveTab }) {
-      const menstruatingMembers = members.filter(m => m.role === 'Mamma' || m.role === 'Barn' || m.role === 'Annan');
-      const [selectedMember, setSelectedMember] = useState(menstruatingMembers[0]?.id || '');
+      const trackedMembers = members.filter(m => m.trackCycle);
+      const [selectedMember, setSelectedMember] = useState(trackedMembers[0]?.id || '');
+      
+      useEffect(() => {
+          if (!selectedMember && trackedMembers.length > 0) setSelectedMember(trackedMembers[0].id);
+      }, [trackedMembers, selectedMember]);
+
       const [mood, setMood] = useState('Bra');
       const [bleeding, setBleeding] = useState('Nej');
+
+      if (trackedMembers.length === 0) {
+          return (
+              <div className="p-4 pb-32 h-full overflow-y-auto">
+                <button onClick={() => setActiveTab('menu')} className="mb-4 text-[#1D2538]/50 font-bold text-sm flex items-center gap-1 hover:text-[#1D2538]"><ChevronDown className="rotate-90" size={16}/> Tillbaka</button>
+                <div className="bg-white p-8 rounded-3xl shadow-sm border border-[#1D2538]/5 text-center mt-10">
+                    <Activity size={40} className="mx-auto text-[#1D2538]/20 mb-4" />
+                    <h3 className="font-black text-xl text-[#1D2538] mb-2">Ingen spåras</h3>
+                    <p className="text-sm font-bold text-[#1D2538]/60 mb-6">Gå till Familj & Inställningar och kryssa i "Spåra Cykelkollen" på den person som vill följa sin cykel.</p>
+                    <button onClick={() => setActiveTab('settings_family')} className="bg-[#581625] text-white px-6 py-3 rounded-2xl font-black shadow-md hover:-translate-y-1 transition-all">Gå till Inställningar</button>
+                </div>
+              </div>
+          );
+      }
 
       const addLog = (e) => {
         e.preventDefault();
         const today = getLocalToday();
         const filteredLogs = logs.filter(l => !(l.date === today && l.memberId === selectedMember));
         updateData('healthLogs', [{ id: generateId(), memberId: selectedMember, date: today, mood, bleeding }, ...filteredLogs]);
+        setMood('Bra');
+        setBleeding('Nej');
       };
 
       // Beräkna Cykel och Faser för vald person
@@ -1217,24 +1245,33 @@
       let currentPhase = null;
       let cycleDay = null;
       let phaseTips = '';
+      let partnerTips = '';
 
       if (lastPeriod) {
           const diffTime = Math.abs(new Date() - new Date(lastPeriod.date));
-          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-          cycleDay = diffDays % 28 || 28; // Snittcykel på 28 dagar
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          cycleDay = (diffDays % 28) + 1; // Snittcykel på 28 dagar
 
           if(cycleDay <= 5) {
-              currentPhase = 'Menstruation';
-              phaseTips = 'Kroppen behöver ofta mer vila. Fokusera på återhämtning, drick mycket vatten och sänk kraven hemma. Värmekudde rekommenderas!';
+              currentPhase = 'Menstruation (Dag 1-5)';
+              phaseTips = 'Energin är ofta låg. Kroppen behöver vila och återhämtning. Försök sänka kraven på dig själv.';
+              partnerTips = 'Erbjud dig att ta huvudansvaret för middag och nattning. En värmekudde och lite favoritsnacks ger extra pluspoäng!';
           } else if(cycleDay <= 13) {
-              currentPhase = 'Follikulär fas';
-              phaseTips = 'Energin är på väg upp! Bra tålamod och pepp. Perfekt läge att planera utflykter eller ta tag i städ/projekt.';
-          } else if(cycleDay === 14) {
-              currentPhase = 'Ägglossning';
-              phaseTips = 'Pikande energi (oftast)! Passa på att vara social och göra roliga aktiviteter med barnen.';
+              currentPhase = 'Follikulär fas (Dag 6-13)';
+              phaseTips = 'Energin stiger! Tålamodet växer, ökat fokus och driv. Perfekt tid att ta tag i roliga projekt.';
+              partnerTips = 'Passa på att planera utflykter, diskutera logistik eller fixa hushållssysslor tillsammans. Humöret är oftast på topp.';
+          } else if(cycleDay <= 15) {
+              currentPhase = 'Ägglossning (Kring dag 14)';
+              phaseTips = 'Pikande energi och socialt humör. Känn dig stark och oövervinnerlig!';
+              partnerTips = 'Energin räcker till roliga och spontana aktiviteter. Njut av en extremt harmonisk fas!';
+          } else if(cycleDay <= 21) {
+              currentPhase = 'Tidig Lutealfas (Dag 16-21)';
+              phaseTips = 'Energin börjar sakta dala efter ägglossningen. Ett lite lugnare tempo känns ofta bäst nu.';
+              partnerTips = 'En lugn stämning hemma uppskattas. Inga stora sista-minuten-överraskningar eller tunga diskussioner.';
           } else {
-              currentPhase = 'Lutealfas (Före mens)';
-              phaseTips = 'Energin dalar sakta. Hjärndimma och kortare tålamod kan förekomma mot slutet. Viktigt att partnern/familjen kliver in och avlastar extra mycket nu!';
+              currentPhase = 'Sen Lutealfas / PMS (Dag 22-28)';
+              phaseTips = 'Du kan känna trötthet, hjärndimma och sämre tålamod. Kroppen förbereder sig för mens. Var snäll mot dig själv.';
+              partnerTips = 'Tålamodet kan vara extremt kort. Ta inte snäsningar personligt. Kliv in proaktivt och ta över konflikter med barnen direkt. Fråga: "Vad underlättar mest just nu?"';
           }
       }
 
@@ -1248,23 +1285,41 @@
              <p className="text-[#581625]/80 text-sm font-bold mt-2 relative z-10">Följ cykeln för att förstå energinivåerna och förenkla vardagspusslet.</p>
           </div>
 
-          <div className="bg-white p-5 rounded-3xl shadow-sm border mb-6">
-              <label className="text-[10px] font-black uppercase text-[#1D2538]/50 mb-1.5 block">Vem loggar vi för?</label>
-              <select value={selectedMember} onChange={e => setSelectedMember(e.target.value)} className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold text-[#1D2538] outline-none">
-                  {menstruatingMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-          </div>
+          {trackedMembers.length > 1 && (
+              <div className="bg-white p-5 rounded-3xl shadow-sm border mb-6">
+                  <label className="text-[10px] font-black uppercase text-[#1D2538]/50 mb-1.5 block">Vem loggar vi för?</label>
+                  <select value={selectedMember} onChange={e => setSelectedMember(e.target.value)} className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold text-[#1D2538] outline-none">
+                      {trackedMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+              </div>
+          )}
 
-          {lastPeriod && (
+          {lastPeriod ? (
               <div className="bg-white p-5 rounded-3xl shadow-sm border mb-6 animate-in slide-in-from-top-4">
                   <div className="flex justify-between items-center mb-2">
-                      <h3 className="font-black text-xl text-[#1D2538]">Nuvarande fas</h3>
+                      <h3 className="font-black text-xl text-[#1D2538]">Aktuell fas</h3>
                       <span className="bg-[#581625] text-white text-[10px] font-black px-2 py-1 rounded-lg">Dag {cycleDay}</span>
                   </div>
-                  <p className="font-bold text-[#E55835] mb-3">{currentPhase}</p>
-                  <div className="bg-[#F7F4EE] p-4 rounded-2xl">
-                      <p className="text-sm font-semibold text-[#1D2538]/80 leading-relaxed"><strong className="text-[#1D2538]">Tips:</strong> {phaseTips}</p>
+                  <p className="font-bold text-[#E55835] mb-4">{currentPhase}</p>
+                  
+                  <div className="space-y-3">
+                      <div className="bg-[#F7F4EE] p-4 rounded-2xl">
+                          <h4 className="text-[10px] font-black uppercase text-[#1D2538]/50 mb-1">För dig</h4>
+                          <p className="text-sm font-semibold text-[#1D2538]/80 leading-relaxed">{phaseTips}</p>
+                      </div>
+                      <div className="bg-[#581625]/5 p-4 rounded-2xl border border-[#581625]/10">
+                          <h4 className="text-[10px] font-black uppercase text-[#581625]/60 mb-1">Tips till Partner / Familj</h4>
+                          <p className="text-sm font-semibold text-[#581625]/80 leading-relaxed">{partnerTips}</p>
+                      </div>
                   </div>
+              </div>
+          ) : (
+              <div className="bg-white p-6 rounded-3xl shadow-sm border mb-6 text-center animate-in slide-in-from-top-4">
+                  <div className="w-12 h-12 bg-[#F2C4C4] rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Activity size={24} className="text-[#581625]"/>
+                  </div>
+                  <h3 className="font-black text-lg text-[#1D2538] mb-2">Dags att börja spåra!</h3>
+                  <p className="text-sm font-bold text-[#1D2538]/60">För att appen ska kunna räkna ut din cykel, faser och ge tips behöver du logga din första blödningsdag nedan.</p>
               </div>
           )}
 
