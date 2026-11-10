@@ -99,13 +99,19 @@
         return ['Sön','Mån','Tis','Ons','Tors','Fre','Lör'][d.getDay()]; 
     };
 
-    function ProfileSelection({ members, setLocalProfileId }) {
+    // --- PROFILVÄLJARE (KOPPLAR E-POST TILL PROFIL) ---
+    function ProfileSelection({ members, currentUserEmail, updateData }) {
+        const handleSelect = (member) => {
+            const updatedMembers = members.map(m => m.id === member.id ? { ...m, email: currentUserEmail } : m);
+            updateData('members', updatedMembers);
+        };
+
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-[#F7F4EE] p-6 animate-in fade-in">
-                <h2 className="text-3xl font-black text-[#1D2538] mb-8 text-center tracking-tight">Vem är det som tittar?</h2>
+                <h2 className="text-3xl font-black text-[#1D2538] mb-8 text-center tracking-tight">Vem är du?</h2>
                 <div className="grid grid-cols-2 gap-6 w-full max-w-sm">
                     {members.map(m => (
-                        <button key={m.id} onClick={() => setLocalProfileId(m.id)} className="flex flex-col items-center gap-3 hover:scale-105 transition-transform group">
+                        <button key={m.id} onClick={() => handleSelect(m)} className="flex flex-col items-center gap-3 hover:scale-105 transition-transform group">
                             <div className={`w-24 h-24 rounded-[2rem] flex items-center justify-center text-3xl shadow-sm border-2 border-transparent group-hover:border-[#1D2538]/20 transition-all ${getTagColor(m.name)}`}>
                                 {m.name.charAt(0).toUpperCase()}
                             </div>
@@ -114,18 +120,19 @@
                     ))}
                 </div>
                 <div className="mt-12 text-center">
-                    <p className="text-xs font-bold text-[#1D2538]/40">Välj din profil för att få din anpassade startsida.</p>
+                    <p className="text-xs font-bold text-[#1D2538]/50">Klicka på din profil för att koppla ditt inlogg <br/>({currentUserEmail}) till rätt person.</p>
                 </div>
             </div>
         )
     }
 
+    // --- DATASYNC MED DELAT KASSASKÅP ---
     function useAppSync(user) {
       const initialData = {
         members: [
-          { id: generateId(), name: 'Mamma', role: 'Mamma', trackCycle: false, sizes: { 'Skor': '38', 'Tröja': 'M' } },
-          { id: generateId(), name: 'Pappa', role: 'Pappa', trackCycle: false, sizes: { 'Skor': '43', 'Skjorta': 'L' } },
-          { id: generateId(), name: 'Viggo', role: 'Barn', trackCycle: false, sizes: { 'Skor': '34', 'Ytterplagg': '134' }, birthDate: '2015-05-10' }
+          { id: generateId(), name: 'Mamma', role: 'Mamma', email: '', sizes: { 'Skor': '38', 'Tröja': 'M' } },
+          { id: generateId(), name: 'Pappa', role: 'Pappa', email: '', sizes: { 'Skor': '43', 'Skjorta': 'L' } },
+          { id: generateId(), name: 'Barn', role: 'Barn', email: '', sizes: { 'Skor': '34', 'Ytterplagg': '134' }, birthDate: '2015-05-10' }
         ],
         shoppingItems: [], groceries: [], todos: [], events: [], healthLogs: [],
         meals: {
@@ -135,7 +142,7 @@
         settings: { 
             weather: { zipcode: '111 22', city: 'Stockholm' }, 
             roleCategories: { 'Barn': ['Skor', 'Ytterplagg', 'Kläder'], 'Mamma': ['Skor', 'Tröja', 'Byxor'], 'Pappa': ['Skor', 'Skjorta'], 'Annan': ['Skor'] },
-            cycleTrackerMemberId: ''
+            cycleTrackerMemberId: '' // Vem spåras i cykelkollen?
         }
       };
 
@@ -145,7 +152,9 @@
       useEffect(() => {
         if (!user || !db) return;
         
-        const docRef = doc(db, 'users', user.uid);
+        // Alla i familjen läser nu från SAMMA dokument ("sharedData"), 
+        // oavsett vem som är inloggad. På så sätt delas informationen!
+        const docRef = doc(db, 'family', 'sharedData');
         
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
           if (docSnap.exists()) {
@@ -162,7 +171,7 @@
           setLoadingData(false);
         }, (err) => {
             console.error("Fel vid hämtning av data.", err);
-            alert("Kunde inte hämta data från Firebase.");
+            alert("Kunde inte hämta data från Firebase. Kolla så Firestore Rules är uppsatta korrekt.");
         });
         return () => unsubscribe();
       }, [user]);
@@ -170,7 +179,7 @@
       const updateData = (key, newData) => {
         setData(prev => {
           const updatedVal = typeof newData === 'function' ? newData(prev[key]) : newData;
-          if (user && db) setDoc(doc(db, 'users', user.uid), { [key]: updatedVal }, { merge: true });
+          if (user && db) setDoc(doc(db, 'family', 'sharedData'), { [key]: updatedVal }, { merge: true });
           return { ...prev, [key]: updatedVal };
         });
       };
@@ -178,6 +187,7 @@
       return [data, updateData, loadingData];
     }
 
+    // --- INLOGGNINGSSKÄRM ---
     function LoginScreen() {
       const [email, setEmail] = useState(''); 
       const [password, setPassword] = useState(''); 
@@ -197,9 +207,9 @@
             } 
         } catch (err) { 
             if (err.code === 'auth/email-already-in-use') setError('E-postadressen används redan. Logga in istället!');
-            else if (err.code === 'auth/weak-password') setError('Lösenordet är för kort. Det måste vara minst 6 tecken.');
+            else if (err.code === 'auth/weak-password') setError('Lösenordet är för kort. Minst 6 tecken krävs.');
             else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') setError('Fel e-post eller lösenord.');
-            else setError('Något gick snett (' + err.code + '). Kontrollera uppgifterna.');
+            else setError('Något gick snett (' + err.code + ').');
         }
         setLoading(false);
       };
@@ -210,17 +220,17 @@
              <div className="absolute -top-10 -right-10 w-40 h-40 bg-white rounded-full opacity-20 blur-3xl"></div>
              <Home size={40} className="mb-4 relative z-10" />
              <h1 className="text-4xl font-black relative z-10 tracking-tight">Familjehubb</h1>
-             <p className="font-bold text-white/80 mt-2 relative z-10">Logga in för att synka familjens vardag.</p>
+             <p className="font-bold text-white/80 mt-2 relative z-10">Logga in med din egen e-post.</p>
           </div>
           <form onSubmit={handleSubmit} className="w-full max-w-sm bg-white p-6 rounded-[2rem] shadow-sm border border-[#1D2538]/5">
-            <h2 className="text-xl font-black text-[#1D2538] mb-5">{isRegistering ? 'Skapa Familjekonto' : 'Logga in'}</h2>
+            <h2 className="text-xl font-black text-[#1D2538] mb-5">{isRegistering ? 'Skapa konto' : 'Logga in'}</h2>
             
             {error && <div className="bg-[#F2C4C4] text-[#581625] p-3 rounded-xl text-sm font-bold mb-4">{error}</div>}
             
-            <label className="text-[10px] font-black uppercase text-[#1D2538]/50 mb-1 ml-1 block">Gemensam E-post</label>
+            <label className="text-[10px] font-black uppercase text-[#1D2538]/50 mb-1 ml-1 block">Din E-post</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold outline-none mb-4" />
             
-            <label className="text-[10px] font-black uppercase text-[#1D2538]/50 mb-1 ml-1 block">Gemensamt Lösenord (Minst 6 tecken)</label>
+            <label className="text-[10px] font-black uppercase text-[#1D2538]/50 mb-1 ml-1 block">Ditt Lösenord (Minst 6 tecken)</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold outline-none mb-6" />
             
             <button type="submit" disabled={loading} className="w-full bg-[#1D2538] text-white py-3.5 rounded-2xl font-black shadow-md flex justify-center items-center gap-2">
@@ -228,7 +238,7 @@
                 {isRegistering ? 'Skapa konto' : 'Logga in'}
             </button>
             <button type="button" onClick={() => {setIsRegistering(!isRegistering); setError('');}} className="w-full text-center mt-4 text-sm font-bold text-[#1D2538]/60 hover:text-[#1D2538]">
-                {isRegistering ? 'Har ni redan ett konto? Logga in' : 'Inget konto? Skapa ett här'}
+                {isRegistering ? 'Har du redan ett konto? Logga in' : 'Inget konto? Skapa ett här'}
             </button>
           </form>
         </div>
@@ -245,13 +255,12 @@
     }
 
     // --- 1. DASHBOARD ---
-    function Dashboard({ events, todos, shoppingItems, healthLogs, weatherConfig, setActiveTab, members, meals, localProfileId, onEditItem }) {
+    function Dashboard({ events, todos, shoppingItems, healthLogs, weatherConfig, setActiveTab, members, settings, meals, localProfileId, onEditItem }) {
       const today = getLocalToday();
       const upcomingEvents = events.filter(e => e.fromDate >= today).sort((a, b) => { 
           if (a.fromDate !== b.fromDate) return a.fromDate.localeCompare(b.fromDate); 
           return (a.fromTime || '00:00').localeCompare(b.fromTime || '00:00'); 
       });
-      const todayLog = healthLogs.find(log => log.date === today && log.memberId === localProfileId);
       const activeTodos = todos.filter(t => !t.completed); 
       const activeShopping = shoppingItems.filter(i => !i.completed);
       
@@ -260,11 +269,13 @@
       const todaysMeal = meals?.current?.[daysArr[dayIndex]];
 
       // Cykelkollen Widget Logic
-      const trackedMember = members.find(m => m.trackCycle);
+      const trackedMemberId = settings.cycleTrackerMemberId;
+      const trackedMember = members.find(m => m.id === trackedMemberId);
       const isTrackingMe = trackedMember && trackedMember.id === localProfileId;
+      const todayLog = healthLogs.find(log => log.date === today && log.memberId === trackedMemberId);
 
       let currentPhase = 'Ingen data';
-      let partnerTips = 'Be din partner logga sin cykel för att få tips.';
+      let partnerTips = 'Väntar på att partnern ska logga sin cykel.';
       let cycleDay = null;
 
       if (trackedMember) {
@@ -458,7 +469,7 @@
                         className={`cursor-pointer hover:border-[#1D2538]/30 transition-colors bg-white rounded-3xl p-4 shadow-sm border-l-4 ${isToday ? 'border-l-[#E55835]' : 'border-l-[#1D2538]/30'} ${amIResponsible ? 'border-r-4 border-r-[#581625] bg-[#581625]/5' : ''} border-y border-r flex gap-4 items-center`}
                     >
                       <div className={`flex flex-col items-center justify-center rounded-2xl px-2 py-2 min-w-[70px] ${isToday ? 'bg-[#E55835]/10 text-[#E55835]' : 'bg-[#F7F4EE] text-[#1D2538]/50'}`}>
-                          <span className="text-xs font-black">{isToday ? 'IDAG' : event.fromDate}</span>
+                          <span className="text-xs font-black">{isToday ? 'IDAG' : event.fromDate.substring(5)}</span>
                           <span className="text-[10px] font-bold mt-0.5">{event.fromTime || 'Heldag'}</span>
                       </div>
                       <div className="flex-1 py-1">
@@ -523,9 +534,6 @@
             </div>
           </div>
           
-          <div className="flex justify-center mt-6 mb-10">
-              <button onClick={() => signOut(auth)} className="flex items-center gap-2 text-sm font-bold text-[#1D2538]/40 hover:text-[#581625] px-4 py-2 bg-white rounded-xl shadow-sm"><LogOut size={16}/> Logga ut</button>
-          </div>
         </div>
       );
     }
@@ -954,8 +962,8 @@
 
                 <div className="space-y-3">
                     {activeTodos.map(todo => (
-                        <div key={todo.id} className="bg-white p-4 rounded-3xl shadow-sm border flex gap-4">
-                            <button onClick={() => toggleComplete(todo.id)} className="mt-1 flex-shrink-0 w-6 h-6 rounded-full border-2 border-[#1D2538]/20 hover:border-[#E55835]"></button>
+                        <div key={todo.id} className="bg-white p-4 rounded-3xl shadow-sm border flex gap-4 items-center">
+                            <button onClick={() => toggleComplete(todo.id)} className="flex-shrink-0 w-6 h-6 rounded-full border-2 border-[#1D2538]/20 hover:border-[#1D2538]"></button>
                             <div className="flex-1">
                                 <h4 className="font-bold leading-tight text-lg">{todo.title}</h4>
                                 {todo.notes && <p className="text-xs font-semibold text-[#1D2538]/60 mt-1">{todo.notes}</p>}
@@ -1125,7 +1133,7 @@
         const startingCategories = (settings.roleCategories || {})['Barn'] || [];
         startingCategories.forEach(cat => initialSizes[cat] = '');
         
-        updateData('members', [...members, { id: generateId(), name: newName.trim(), role: 'Barn', trackCycle: false, sizes: initialSizes, birthDate: '' }]);
+        updateData('members', [...members, { id: generateId(), name: newName.trim(), role: 'Barn', trackCycle: false, email: '', sizes: initialSizes, birthDate: '' }]);
         setNewName('');
       };
 
@@ -1162,8 +1170,20 @@
             <button 
                 onClick={() => { setLocalProfileId(''); localStorage.removeItem('familyHubLocalProfile'); }} 
                 className="bg-white text-[#1D2538] font-black text-xs px-4 py-2 rounded-xl shadow-sm border border-[#1D2538]/10 hover:bg-[#1D2538] hover:text-white transition-colors">
-                Byt
+                Byt profil
             </button>
+          </div>
+          
+          <div className="bg-[#F2C4C4]/20 rounded-3xl p-5 mb-6 border border-[#581625]/20">
+            <h3 className="font-black text-lg text-[#581625] mb-2">🌸 Vem spåras i Cykelkollen?</h3>
+            <p className="text-xs font-bold text-[#581625]/60 mb-4">Välj vilken familjemedlem hormon/mens-kollen ska gälla för.</p>
+            <select 
+                value={settings.cycleTrackerMemberId || ''} 
+                onChange={e => updateData('settings', { ...settings, cycleTrackerMemberId: e.target.value })} 
+                className="w-full bg-white rounded-2xl px-4 py-3 font-black text-[#581625] outline-none shadow-sm appearance-none border border-[#581625]/10">
+                <option value="">-- Välj person --</option>
+                {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
           </div>
 
           <div className="bg-[#1D2538] rounded-3xl p-6 text-white shadow-lg mb-6">
@@ -1186,6 +1206,15 @@
                     <h4 className="font-black text-xl flex items-center gap-3"><span className={`w-10 h-10 rounded-full flex items-center justify-center ${getTagColor(member.name)}`}><User size={20} /></span> {member.name}</h4>
                     <button onClick={() => deleteMember(member.id)} className="text-[#1D2538]/30 hover:text-[#581625]"><Trash2 size={18} /></button>
                   </div>
+
+                  <div className="flex flex-col gap-1 mb-4">
+                    <label className="text-[10px] font-black uppercase text-[#1D2538]/50 block ml-1">Kopplad e-post</label>
+                    <div className="w-full rounded-2xl bg-[#F7F4EE] px-4 py-3 flex justify-between items-center text-[#1D2538]">
+                      <span className="font-bold text-sm">{member.email ? member.email : <span className="text-[#1D2538]/40">Ingen kopplad</span>}</span>
+                      {member.email && <button onClick={() => updateMember(member.id, { email: '' })} className="text-[10px] uppercase font-black text-[#E55835]">Koppla bort</button>}
+                    </div>
+                  </div>
+
                   <div className="flex gap-3 mb-4">
                     <div className="flex-1">
                       <label className="text-[10px] font-black uppercase text-[#1D2538]/50 block ml-1 mb-1">Roll</label>
@@ -1197,11 +1226,6 @@
                       <label className="text-[10px] font-black uppercase text-[#1D2538]/50 block ml-1 mb-1">Född (ÅÅÅÅ-MM-DD)</label>
                       <input type="date" value={member.birthDate || ''} onChange={e => updateMember(member.id, { birthDate: e.target.value })} className="w-full rounded-2xl bg-[#F7F4EE] px-3 py-2.5 outline-none font-bold text-sm" />
                     </div>
-                  </div>
-                  
-                  <div className="flex justify-between items-center bg-[#F7F4EE] px-4 py-3 rounded-2xl mb-4">
-                    <span className="text-xs font-black text-[#1D2538]/80">Spåra Cykelkollen</span>
-                    <input type="checkbox" checked={!!member.trackCycle} onChange={e => updateMember(member.id, { trackCycle: e.target.checked })} className="w-5 h-5 accent-[#581625]" />
                   </div>
 
                   <div className="space-y-2">
@@ -1272,8 +1296,9 @@
     }
 
     // --- CYKELKOLLEN (Förutspår Cykel & Mående) ---
-    function HealthTracker({ logs, members, updateData, setActiveTab, localProfileId }) {
-      const trackedMember = members.find(m => m.trackCycle);
+    function HealthTracker({ logs, members, updateData, setActiveTab, localProfileId, settings }) {
+      const trackedMemberId = settings.cycleTrackerMemberId;
+      const trackedMember = members.find(m => m.id === trackedMemberId);
       const isTrackingMe = trackedMember && trackedMember.id === localProfileId;
       
       const [mood, setMood] = useState('Bra');
@@ -1288,7 +1313,7 @@
                 <div className="bg-white p-8 rounded-3xl shadow-sm border border-[#1D2538]/5 text-center mt-10">
                     <Activity size={40} className="mx-auto text-[#1D2538]/20 mb-4" />
                     <h3 className="font-black text-xl text-[#1D2538] mb-2">Ingen spåras</h3>
-                    <p className="text-sm font-bold text-[#1D2538]/60 mb-6">Gå till Familj & Inställningar och kryssa i "Spåra Cykelkollen" på den person som vill följa sin cykel.</p>
+                    <p className="text-sm font-bold text-[#1D2538]/60 mb-6">Gå till Familj & Inställningar och välj vem som vill följa sin cykel.</p>
                     <button onClick={() => setActiveTab('settings_family')} className="bg-[#581625] text-white px-6 py-3 rounded-2xl font-black shadow-md hover:-translate-y-1 transition-all">Gå till Inställningar</button>
                 </div>
               </div>
@@ -1380,7 +1405,7 @@
                     </div>
                   ) : (
                       <div className="bg-white p-6 rounded-3xl shadow-sm border mb-6 text-center">
-                          <p className="text-sm font-bold text-[#1D2538]/60">Väntar på att {trackedMember.name} ska logga sin första dag.</p>
+                          <p className="text-sm font-bold text-[#1D2538]/60">Väntar på att {trackedMember.name} ska logga sin första blödningsdag.</p>
                       </div>
                   )}
               </div>
@@ -1588,8 +1613,6 @@
       const [authLoading, setAuthLoading] = useState(true);
       const [activeTab, setActiveTab] = useState('dashboard');
       const [editItemId, setEditItemId] = useState(null);
-      
-      const [localProfileId, setLocalProfileId] = useState(localStorage.getItem('familyHubLocalProfile') || '');
 
       useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => { setUser(currentUser); setAuthLoading(false); });
@@ -1600,8 +1623,14 @@
 
       if (authLoading || (user && loadingData)) return <div className="flex flex-col h-screen items-center justify-center bg-[#F7F4EE]"><Loader2 size={40} className="animate-spin text-[#581625] mb-4" /><p className="font-bold text-[#1D2538]/50">Laddar familjehubben...</p></div>;
       if (!user) return <LoginScreen />;
+      
+      // Hitta om den inloggades mejladress är kopplad till någon profil i familjen
+      const myProfile = data.members.find(m => m.email === user.email);
+      const localProfileId = myProfile ? myProfile.id : null;
+
+      // Om mejlen inte är kopplad ännu (och det finns profiler skapade), visa väljarskärm
       if (!localProfileId && data.members.length > 0) {
-          return <ProfileSelection members={data.members} setLocalProfileId={(id) => { setLocalProfileId(id); localStorage.setItem('familyHubLocalProfile', id); }} />
+          return <ProfileSelection members={data.members} currentUserEmail={user.email} updateData={updateData} />
       }
 
       const handleEditItemRequest = (tab, id) => {
@@ -1611,17 +1640,17 @@
 
       const renderContent = () => {
         switch (activeTab) {
-          case 'dashboard': return <Dashboard events={data.events} todos={data.todos} shoppingItems={data.shoppingItems} healthLogs={data.healthLogs} weatherConfig={data.settings.weather} setActiveTab={setActiveTab} members={data.members} meals={data.meals} localProfileId={localProfileId} onEditItem={handleEditItemRequest} />;
+          case 'dashboard': return <Dashboard events={data.events} todos={data.todos} shoppingItems={data.shoppingItems} healthLogs={data.healthLogs} weatherConfig={data.settings.weather} setActiveTab={setActiveTab} members={data.members} settings={data.settings} meals={data.meals} localProfileId={localProfileId} onEditItem={handleEditItemRequest} />;
           case 'shopping': return <ShoppingList items={data.shoppingItems} groceries={data.groceries} members={data.members} settings={data.settings} updateData={updateData} editItemId={editItemId} setEditItemId={setEditItemId} />;
           case 'calendar': return <Calendar events={data.events} members={data.members} updateData={updateData} editItemId={editItemId} setEditItemId={setEditItemId} />;
           case 'todo': return <TodoList todos={data.todos} members={data.members} updateData={updateData} editItemId={editItemId} setEditItemId={setEditItemId} />;
           case 'menu': return <Menu setActiveTab={setActiveTab} />;
           case 'meals': return <MealPlanner meals={data.meals} updateData={updateData} setActiveTab={setActiveTab} />;
-          case 'settings_family': return <SettingsFamily members={data.members} settings={data.settings} updateData={updateData} setActiveTab={setActiveTab} localProfileId={localProfileId} setLocalProfileId={setLocalProfileId} />;
+          case 'settings_family': return <SettingsFamily members={data.members} settings={data.settings} updateData={updateData} setActiveTab={setActiveTab} localProfileId={localProfileId} />;
           case 'settings_sizes': return <SettingsSizes settings={data.settings} updateData={updateData} setActiveTab={setActiveTab} />;
-          case 'health': return <HealthTracker logs={data.healthLogs} members={data.members} updateData={updateData} setActiveTab={setActiveTab} localProfileId={localProfileId} />;
+          case 'health': return <HealthTracker logs={data.healthLogs} members={data.members} settings={data.settings} updateData={updateData} setActiveTab={setActiveTab} localProfileId={localProfileId} />;
           case 'child_dev': return <ChildDevelopment members={data.members} setActiveTab={setActiveTab} />;
-          default: return <Dashboard events={data.events} todos={data.todos} shoppingItems={data.shoppingItems} healthLogs={data.healthLogs} weatherConfig={data.settings.weather} setActiveTab={setActiveTab} members={data.members} meals={data.meals} localProfileId={localProfileId} onEditItem={handleEditItemRequest} />;
+          default: return <Dashboard events={data.events} todos={data.todos} shoppingItems={data.shoppingItems} healthLogs={data.healthLogs} weatherConfig={data.settings.weather} setActiveTab={setActiveTab} members={data.members} settings={data.settings} meals={data.meals} localProfileId={localProfileId} onEditItem={handleEditItemRequest} />;
         }
       };
 
