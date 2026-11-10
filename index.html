@@ -115,6 +115,7 @@
 
       const [data, setData] = useState(initialData);
       const [loadingData, setLoadingData] = useState(true);
+      const [saveError, setSaveError] = useState('');
 
       useEffect(() => {
         if (!user || !db) return;
@@ -133,14 +134,27 @@
             };
             
             setData(safeData);
+            localStorage.setItem(`familyHub_${user.uid}`, JSON.stringify(safeData)); // Spara lokal backup
           } else {
-            setDoc(docRef, initialData).catch(e => console.error("Skapandefel:", e));
-            setData(initialData);
+            // Kolla efter lokal backup ifall molnet krånglat tidigare
+            const localBackup = localStorage.getItem(`familyHub_${user.uid}`);
+            const dataToSet = localBackup ? JSON.parse(localBackup) : initialData;
+            
+            setDoc(docRef, dataToSet).catch(e => {
+                console.error("Skapandefel:", e);
+                setSaveError('Kunde inte skapa data i molnet. Har du ändrat Rules i Firebase?');
+            });
+            setData(dataToSet);
           }
           setLoadingData(false);
         }, (err) => {
             console.error("Fel vid hämtning av data.", err);
-            alert("Kunde inte hämta data från Firebase. Har du satt databasens Rules till true?");
+            setSaveError('Behörighetsfel: Firebase blockerar molnet. Kolla Rules!');
+            
+            // Ladda från backup om molnet nekar
+            const localBackup = localStorage.getItem(`familyHub_${user.uid}`);
+            if (localBackup) setData(JSON.parse(localBackup));
+            setLoadingData(false);
         });
         return () => unsubscribe();
       }, [user]);
@@ -148,12 +162,23 @@
       const updateData = (key, newData) => {
         setData(prev => {
           const updatedVal = typeof newData === 'function' ? newData(prev[key]) : newData;
-          if (user && db) setDoc(doc(db, 'users', user.uid), { [key]: updatedVal }, { merge: true });
-          return { ...prev, [key]: updatedVal };
+          const newFullData = { ...prev, [key]: updatedVal };
+          
+          if (user) localStorage.setItem(`familyHub_${user.uid}`, JSON.stringify(newFullData)); // Spara alltid lokalt först
+          
+          if (user && db) {
+             setDoc(doc(db, 'users', user.uid), { [key]: updatedVal }, { merge: true })
+               .then(() => setSaveError(''))
+               .catch(err => {
+                   console.error("Skrivfel:", err);
+                   setSaveError('Molnet nekar sparning! Kolla fliken "Rules" i Firebase.');
+               });
+          }
+          return newFullData;
         });
       };
 
-      return [data, updateData, loadingData];
+      return [data, updateData, loadingData, saveError];
     }
 
     function LoginScreen() {
@@ -1205,7 +1230,7 @@
         return () => unsubscribe();
       }, []);
 
-      const [data, updateData, loadingData] = useAppSync(user);
+      const [data, updateData, loadingData, saveError] = useAppSync(user);
 
       if (authLoading || (user && loadingData)) return <div className="flex flex-col h-screen items-center justify-center bg-[#F7F4EE]"><Loader2 size={40} className="animate-spin text-[#581625] mb-4" /><p className="font-bold text-[#1D2538]/50">Laddar familjehubben...</p></div>;
       if (!user) return <LoginScreen />;
@@ -1230,6 +1255,13 @@
       return (
         <div className="flex flex-col h-screen max-w-md mx-auto bg-[#F7F4EE] relative overflow-hidden font-sans">
           <header className="bg-gradient-to-r from-[#581625] to-[#731E32] px-6 py-5 shadow-md z-10 flex justify-center items-end h-20 rounded-b-3xl shrink-0"><h1 className="text-xl font-black text-[#F7F4EE] tracking-widest uppercase opacity-90">{getHeaderTitle()}</h1></header>
+          
+          {saveError && (
+              <div className="bg-[#581625] text-white px-4 py-2.5 text-xs font-bold text-center z-50 shadow-md">
+                  ⚠️ {saveError}
+              </div>
+          )}
+
           <main className="flex-1 overflow-hidden relative">{renderContent()}</main>
           <div className="absolute bottom-6 left-2 right-2 z-20 pointer-events-none">
             <nav className="pointer-events-auto bg-white/90 backdrop-blur-xl border border-white/40 shadow-xl rounded-3xl mx-auto overflow-hidden">
