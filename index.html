@@ -96,14 +96,13 @@
     };
 
     function useAppSync(user) {
-function useAppSync() {
-  const initialData = {
-    members: [
-      { id: generateId(), name: 'Mamma', role: 'Mamma', trackCycle: true, sizes: { 'Skor': '38', 'Tröja': 'M' } },
-      { id: generateId(), name: 'Pappa', role: 'Pappa', trackCycle: false, sizes: { 'Skor': '43', 'Skjorta': 'L' } },
-      { id: generateId(), name: 'Viggo', role: 'Barn', trackCycle: false, sizes: { 'Skor': '34', 'Ytterplagg': '134' }, birthDate: '2015-05-10' }
-    ],
-    shoppingItems: [], groceries: [], todos: [], events: [], healthLogs: [],
+      const initialData = {
+        members: [
+          { id: generateId(), name: 'Mamma', role: 'Mamma', trackCycle: true, sizes: { 'Skor': '38', 'Tröja': 'M' } },
+          { id: generateId(), name: 'Pappa', role: 'Pappa', trackCycle: false, sizes: { 'Skor': '43', 'Skjorta': 'L' } },
+          { id: generateId(), name: 'Viggo', role: 'Barn', trackCycle: false, sizes: { 'Skor': '34', 'Ytterplagg': '134' }, birthDate: '2015-05-10' }
+        ],
+        shoppingItems: [], groceries: [], todos: [], events: [], healthLogs: [],
         meals: {
             current: { 'Mån': {}, 'Tis': {}, 'Ons': {}, 'Tors': {}, 'Fre': {}, 'Lör': {}, 'Sön': {} },
             next: { 'Mån': {}, 'Tis': {}, 'Ons': {}, 'Tors': {}, 'Fre': {}, 'Lör': {}, 'Sön': {} }
@@ -1215,6 +1214,8 @@ function useAppSync() {
 
       const [mood, setMood] = useState('Bra');
       const [bleeding, setBleeding] = useState('Nej');
+      const [logDate, setLogDate] = useState(getLocalToday());
+      const [editingId, setEditingId] = useState(null);
 
       if (trackedMembers.length === 0) {
           return (
@@ -1230,13 +1231,33 @@ function useAppSync() {
           );
       }
 
-      const addLog = (e) => {
+      const handleSave = (e) => {
         e.preventDefault();
-        const today = getLocalToday();
-        const filteredLogs = logs.filter(l => !(l.date === today && l.memberId === selectedMember));
-        updateData('healthLogs', [{ id: generateId(), memberId: selectedMember, date: today, mood, bleeding }, ...filteredLogs]);
-        setMood('Bra');
-        setBleeding('Nej');
+        if (editingId) {
+            // Uppdaterar befintlig logg
+            updateData('healthLogs', logs.map(l => l.id === editingId ? { ...l, mood, bleeding, date: logDate } : l));
+        } else {
+            // Lägger till ny, men tar bort om det redan fanns en logg för detta datumet så det inte blir dubbelt
+            const filteredLogs = logs.filter(l => !(l.date === logDate && l.memberId === selectedMember));
+            updateData('healthLogs', [{ id: generateId(), memberId: selectedMember, date: logDate, mood, bleeding }, ...filteredLogs]);
+        }
+        resetForm();
+      };
+
+      const editLog = (log) => {
+          setMood(log.mood);
+          setBleeding(log.bleeding);
+          setLogDate(log.date);
+          setEditingId(log.id);
+      };
+
+      const deleteLog = (id) => updateData('healthLogs', logs.filter(l => l.id !== id));
+      
+      const resetForm = () => {
+          setMood('Bra');
+          setBleeding('Nej');
+          setLogDate(getLocalToday());
+          setEditingId(null);
       };
 
       // Beräkna Cykel och Faser för vald person
@@ -1323,8 +1344,17 @@ function useAppSync() {
               </div>
           )}
 
-          <form onSubmit={addLog} className="bg-white p-5 rounded-3xl shadow-sm border mb-8">
-            <h3 className="font-black text-lg text-[#1D2538] mb-4">Logga för idag</h3>
+          <form onSubmit={handleSave} className="bg-white p-5 rounded-3xl shadow-sm border mb-8">
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="font-black text-lg text-[#1D2538]">{editingId ? 'Ändra logg' : 'Ny logg'}</h3>
+                {editingId && <button type="button" onClick={resetForm} className="text-xs font-bold text-[#E55835]">Avbryt ändring</button>}
+            </div>
+            
+            <div className="mb-4">
+                <label className="text-[10px] font-black uppercase text-[#1D2538]/50 mb-1.5 block">Datum</label>
+                <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)} className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold text-[#1D2538] outline-none" required />
+            </div>
+
             <div className="flex gap-4 mb-5">
               <div className="flex-1">
                 <label className="text-[10px] font-black uppercase text-[#1D2538]/50 mb-1.5 block">Mående</label>
@@ -1339,7 +1369,7 @@ function useAppSync() {
                 </select>
               </div>
             </div>
-            <button type="submit" disabled={!selectedMember} className="w-full bg-[#581625] text-white py-3.5 rounded-2xl font-black shadow-md disabled:opacity-50">Spara logg</button>
+            <button type="submit" disabled={!selectedMember} className="w-full bg-[#581625] text-white py-3.5 rounded-2xl font-black shadow-md disabled:opacity-50">{editingId ? 'Spara ändring' : 'Spara logg'}</button>
           </form>
 
           <div>
@@ -1351,12 +1381,18 @@ function useAppSync() {
             ) : (
               <div className="space-y-3">
                 {memberLogs.slice(0, 10).map(log => (
-                  <div key={log.id} className="bg-white p-4 rounded-3xl shadow-sm border flex justify-between items-center">
-                    <div>
-                      <h4 className="font-black text-[#1D2538] text-base">{log.date}</h4>
-                      <p className="text-xs font-bold text-[#1D2538]/50 mt-1">Blödning: <span className={log.bleeding !== 'Nej' ? 'text-[#E55835]' : ''}>{log.bleeding}</span></p>
+                  <div key={log.id} className="bg-white p-4 rounded-3xl shadow-sm border flex gap-4 items-center">
+                    <div className="flex-1">
+                      <h4 className="font-black text-[#1D2538] text-base leading-tight mb-1.5">{log.date}</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="bg-[#F7F4EE] text-[#1D2538] text-[10px] font-black px-2 py-0.5 rounded-lg">{log.mood}</span>
+                        <span className="text-xs font-bold text-[#1D2538]/50">Blödning: <span className={log.bleeding !== 'Nej' ? 'text-[#E55835]' : ''}>{log.bleeding}</span></span>
+                      </div>
                     </div>
-                    <span className="bg-[#F7F4EE] text-[#1D2538] text-xs font-black px-3 py-1.5 rounded-xl">{log.mood}</span>
+                    <div className="flex flex-col gap-2">
+                        <button onClick={() => editLog(log)} className="text-[#1D2538]/30 hover:text-[#1D2538]"><Edit3 size={18} /></button>
+                        <button onClick={() => deleteLog(log.id)} className="text-[#1D2538]/30 hover:text-[#581625]"><Trash2 size={18} /></button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1478,7 +1514,7 @@ function useAppSync() {
         return () => unsubscribe();
       }, []);
 
-      const [data, updateData, loadingData] = useAppSync(user);
+      const [data, updateData, loadingData] = useAppSync();
 
       if (authLoading || (user && loadingData)) return <div className="flex flex-col h-screen items-center justify-center bg-[#F7F4EE]"><Loader2 size={40} className="animate-spin text-[#581625] mb-4" /><p className="font-bold text-[#1D2538]/50">Laddar familjehubben...</p></div>;
       if (!user) return <LoginScreen />;
