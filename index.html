@@ -57,7 +57,7 @@
   <script type="text/babel" data-type="module">
     import React, { useState, useEffect } from 'react';
     import { createRoot } from 'react-dom/client';
-    import { Home, ShoppingCart, CheckSquare, Calendar as CalendarIcon, Grid, Plus, Trash2, Edit3, HeartPulse, User, Ruler, ChevronDown, Wind, Thermometer, Droplets, CloudRain, Check, X, Clock, Utensils, Sparkles, Loader2, Copy, LogOut, Sun, Cloud, CloudFog, CloudSnow, CloudLightning, Info, Baby, Activity, ChevronLeft, ChevronRight, Star, BookOpen } from 'lucide-react';
+    import { Home, ShoppingCart, CheckSquare, Calendar as CalendarIcon, Grid, Plus, Trash2, Edit3, HeartPulse, User, Ruler, ChevronDown, Wind, Thermometer, Droplets, CloudRain, Check, X, Clock, Utensils, Sparkles, Loader2, Copy, LogOut, Sun, Cloud, CloudFog, CloudSnow, CloudLightning, Info, Baby, Activity, ChevronLeft, ChevronRight, Star, BookOpen, RotateCcw, Archive } from 'lucide-react';
     
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -457,42 +457,84 @@
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-            <div className="bg-white rounded-3xl p-5 shadow-sm border">
-                <div className="flex justify-between items-center mb-4 cursor-pointer" onClick={() => setActiveTab('shopping')}>
-                    <h3 className="font-black text-[#1D2538] text-xl">Inköp</h3>
-                    <span className="bg-[#E55835] text-white text-[12px] font-black w-7 h-7 rounded-full flex items-center justify-center">{activeShopping.length}</span>
+          {/* INKÖP (FULLBREDD) */}
+          <div>
+            <div className="flex justify-between items-end mb-4">
+                <div className="flex items-center gap-2.5">
+                    <h2 className="text-2xl font-black text-[#1D2538]">Inköp (Övrigt)</h2>
+                    <span className="bg-[#E55835] text-white text-xs font-black px-2.5 py-0.5 rounded-full">{activeShopping.length}</span>
                 </div>
-                <ul className="space-y-3">
-                    {activeShopping.slice(0, 3).map(i => {
-                      const forMember = members.find(m => m.id === i.memberId);
-                      return (
-                        <li key={i.id} onClick={() => onEditItem('shopping', i.id)} className="flex flex-col border-b border-[#1D2538]/5 pb-2 cursor-pointer hover:bg-[#F7F4EE] rounded-lg px-2">
-                            <div className="text-sm font-bold text-[#1D2538]">{i.title} {forMember ? <span className="text-[10px] font-black text-[#1D2538]/40">- {forMember.name}</span> : ''}</div>
-                        </li>
-                      );
-                    })}
-                    {activeShopping.length === 0 && <li className="text-sm font-bold text-[#1D2538]/30">Inget på listan</li>}
-                </ul>
+                <button onClick={() => setActiveTab('shopping')} className="text-sm font-bold text-[#E55835] bg-[#E55835]/10 px-3 py-1 rounded-xl">Se alla</button>
             </div>
-            
-            <div className="bg-white rounded-3xl p-5 shadow-sm border">
-                <div className="flex justify-between items-center mb-4 cursor-pointer" onClick={() => setActiveTab('todo')}>
-                    <h3 className="font-black text-[#1D2538] text-xl">Att göra</h3>
-                    <span className="bg-[#1D2538] text-white text-[12px] font-black w-7 h-7 rounded-full flex items-center justify-center">{activeTodos.length}</span>
+            <div className="space-y-3">
+              {activeShopping.length === 0 ? (
+                  <div className="bg-white rounded-3xl p-6 text-center border"><p className="text-[#1D2538]/50 font-bold text-sm">Inget på inköpslistan just nu.</p></div>
+              ) : (
+                activeShopping.slice(0, 5).map(i => {
+                  const forMember = members.find(m => m.id === i.memberId);
+                  const buyer = members.find(m => m.id === i.buyerId);
+                  const amIBuyer = localProfileId && i.buyerId === localProfileId;
+
+                  return (
+                    <div key={i.id} onClick={() => onEditItem('shopping', i.id)} className={`cursor-pointer transition-transform active:scale-[0.99] bg-white rounded-3xl p-4 shadow-sm border-l-4 border-l-[#E55835] ${amIBuyer ? 'border-r-4 border-r-[#581625] bg-[#581625]/5' : ''} border-y border-r flex gap-4 items-center`}>
+                      <div className="bg-[#E55835]/10 text-[#E55835] p-3 rounded-2xl shrink-0">
+                          <ShoppingCart size={20} />
+                      </div>
+                      <div className="flex-1 min-w-0 py-0.5">
+                          <h4 className="font-black text-[#1D2538] text-base leading-tight">
+                              {i.title} {forMember ? <span className="text-[#E55835] font-bold">– {forMember.name}</span> : ''}
+                          </h4>
+                          {i.notes && <p className="text-xs font-semibold text-[#1D2538]/60 mt-1 line-clamp-2">{i.notes}</p>}
+                          {(i.details || buyer) && (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                  {i.details && <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#F7F4EE] text-[#1D2538]/70">{i.details}</span>}
+                                  {buyer && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${amIBuyer ? 'bg-[#581625] text-white' : 'bg-[#F7F4EE] text-[#1D2538]'}`}>Köps av: {amIBuyer ? 'Dig' : buyer.name}</span>}
+                              </div>
+                          )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* ATT GÖRA (FULLBREDD) */}
+          <div>
+            <div className="flex justify-between items-end mb-4">
+                <div className="flex items-center gap-2.5">
+                    <h2 className="text-2xl font-black text-[#1D2538]">Att göra</h2>
+                    <span className="bg-[#1D2538] text-white text-xs font-black px-2.5 py-0.5 rounded-full">{activeTodos.length}</span>
                 </div>
-                <ul className="space-y-3">
-                    {activeTodos.slice(0, 3).map(t => {
-                      const isMyTodo = localProfileId && t.memberId === localProfileId;
-                      const forMember = members.find(m => m.id === t.memberId);
-                      return (
-                        <li key={t.id} onClick={() => onEditItem('todo', t.id)} className="flex flex-col border-b border-[#1D2538]/5 pb-2 cursor-pointer hover:bg-[#F7F4EE] rounded-lg px-2">
-                            <div className={`text-sm font-bold ${isMyTodo ? 'text-[#E55835]' : 'text-[#1D2538]'}`}>{t.title} {isMyTodo ? '(Din)' : ''}</div>
-                        </li>
-                      );
-                    })}
-                    {activeTodos.length === 0 && <li className="text-sm font-bold text-[#1D2538]/30">Inga uppgifter</li>}
-                </ul>
+                <button onClick={() => setActiveTab('todo')} className="text-sm font-bold text-[#1D2538] bg-[#1D2538]/10 px-3 py-1 rounded-xl">Se alla</button>
+            </div>
+            <div className="space-y-3">
+              {activeTodos.length === 0 ? (
+                  <div className="bg-white rounded-3xl p-6 text-center border"><p className="text-[#1D2538]/50 font-bold text-sm">Inga aktiva uppgifter just nu.</p></div>
+              ) : (
+                activeTodos.slice(0, 5).map(t => {
+                  const isMyTodo = localProfileId && t.memberId === localProfileId;
+                  const forMember = members.find(m => m.id === t.memberId);
+
+                  return (
+                    <div key={t.id} onClick={() => onEditItem('todo', t.id)} className={`cursor-pointer transition-transform active:scale-[0.99] bg-white rounded-3xl p-4 shadow-sm border-l-4 ${isMyTodo ? 'border-l-[#581625] border-r-4 border-r-[#581625] bg-[#581625]/5' : 'border-l-[#1D2538]/40'} border-y border-r flex gap-4 items-center`}>
+                      <div className={`${isMyTodo ? 'bg-[#581625] text-white' : 'bg-[#1D2538]/10 text-[#1D2538]'} p-3 rounded-2xl shrink-0`}>
+                          <CheckSquare size={20} />
+                      </div>
+                      <div className="flex-1 min-w-0 py-0.5">
+                          <h4 className="font-black text-[#1D2538] text-base leading-tight">{t.title}</h4>
+                          {t.notes && <p className="text-xs font-semibold text-[#1D2538]/60 mt-1 line-clamp-2">{t.notes}</p>}
+                          {(forMember || t.dueDate) && (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                  {forMember && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${isMyTodo ? 'bg-[#581625] text-white' : getTagColor(forMember.name)}`}>Ansvar: {isMyTodo ? 'Du' : forMember.name}</span>}
+                                  {t.dueDate && <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#F7F4EE] text-[#1D2538]/70">Senast: {t.dueDate}</span>}
+                              </div>
+                          )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
@@ -608,14 +650,20 @@
                 </form>
 
                 <div className="space-y-3">
+                    {activeItems.length === 0 && (
+                        <div className="bg-white/70 p-6 rounded-3xl text-center border border-dashed border-[#1D2538]/15">
+                            <p className="text-sm font-bold text-[#1D2538]/40">Inga aktiva inköp under Övrigt.</p>
+                        </div>
+                    )}
                     {activeItems.map(item => (
                         <div key={item.id} className="bg-white p-4 rounded-3xl shadow-sm border flex gap-4">
-                            <button onClick={() => toggleComplete(item.id)} className="mt-1 flex-shrink-0 w-6 h-6 rounded-full border-2 border-[#1D2538]/20 hover:border-[#E55835]"></button>
+                            <button onClick={() => toggleComplete(item.id)} title="Markera som köpt" className="mt-1 flex-shrink-0 w-6 h-6 rounded-full border-2 border-[#1D2538]/20 hover:border-[#E55835]"></button>
                             <div className="flex-1">
                                 <h4 className="font-black text-lg leading-tight">{item.title}</h4>
                                 {item.notes && <p className="text-xs font-semibold text-[#1D2538]/60 mt-1">{item.notes}</p>}
                                 <div className="flex flex-wrap items-center gap-2 mt-2">
                                     {item.memberId && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${getTagColor(members.find(m => m.id === item.memberId)?.name)}`}>För: {members.find(m => m.id === item.memberId)?.name}</span>}
+                                    {item.buyerId && <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-[#1D2538]/10 text-[#1D2538]">Köps av: {members.find(m => m.id === item.buyerId)?.name}</span>}
                                     {item.details && <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-[#F7F4EE] text-[#1D2538]/70">{item.details}</span>}
                                 </div>
                             </div>
@@ -625,6 +673,61 @@
                             </div>
                         </div>
                     ))}
+                </div>
+
+                {/* ARKIV FÖR ÖVRIGA INKÖP */}
+                <div className="mt-8 pt-6 border-t border-[#1D2538]/10">
+                    <div className="flex justify-between items-center mb-3 ml-1">
+                        <h3 className="text-xs font-black text-[#1D2538]/50 uppercase tracking-widest flex items-center gap-2">
+                            <Archive size={15} /> Arkiv – Avbockade inköp ({completedItems.length})
+                        </h3>
+                        {completedItems.length > 0 && (
+                            <button
+                                onClick={() => updateData('shoppingItems', items.filter(i => !i.completed))}
+                                className="text-[11px] font-black text-[#581625]/60 hover:text-[#581625]"
+                            >
+                                Rensa arkiv
+                            </button>
+                        )}
+                    </div>
+
+                    {completedItems.length === 0 ? (
+                        <div className="bg-white/50 p-4 rounded-3xl text-center border border-dashed border-[#1D2538]/10">
+                            <p className="text-xs font-bold text-[#1D2538]/35">Avbockade inköp hamnar här så att du alltid kan återskapa dem.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2.5">
+                            {completedItems.map(item => {
+                                const forMember = members.find(m => m.id === item.memberId);
+                                return (
+                                    <div key={item.id} className="bg-white/70 p-4 rounded-3xl border border-[#1D2538]/10 flex gap-3 items-center">
+                                        <button onClick={() => toggleComplete(item.id)} title="Återskapa" className="flex-shrink-0 w-6 h-6 rounded-full bg-[#1D2538]/80 text-white flex items-center justify-center hover:bg-[#E55835] transition-colors">
+                                            <Check size={14} />
+                                        </button>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-bold text-sm text-[#1D2538]/60 line-through truncate">
+                                                {item.title} {forMember ? `– ${forMember.name}` : ''}
+                                            </div>
+                                            {(item.details || item.notes) && (
+                                                <div className="text-[11px] font-semibold text-[#1D2538]/40 truncate">
+                                                    {[item.details, item.notes].filter(Boolean).join(' • ')}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => toggleComplete(item.id)}
+                                            className="bg-[#F7F4EE] hover:bg-[#E55835]/15 text-[#1D2538] hover:text-[#E55835] text-xs font-black px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors shrink-0"
+                                        >
+                                            <RotateCcw size={13} /> Återskapa
+                                        </button>
+                                        <button onClick={() => deleteItem(item.id)} title="Radera permanent" className="text-[#1D2538]/30 hover:text-[#581625] p-1 shrink-0">
+                                            <Trash2 size={17} />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
               </>
           ) : (
@@ -650,6 +753,61 @@
                         </div>
                     ))}
                 </div>
+
+                {activeGroceries.length > 0 && (
+                    <button onClick={() => {
+                        const text = activeGroceries.map(g => `- ${g.title}${g.amount ? ' (' + g.amount + ')' : ''}`).join('\n');
+                        try {
+                            const textArea = document.createElement("textarea");
+                            textArea.value = "Inköpslista Mat:\n" + text;
+                            document.body.appendChild(textArea);
+                            textArea.select();
+                            document.execCommand("copy");
+                            textArea.remove();
+                            setCopyStatus('✅ Kopierad!');
+                        } catch (err) { setCopyStatus('❌ Kunde inte kopiera'); }
+                        setTimeout(() => setCopyStatus(''), 2500);
+                    }} className="mt-4 w-full bg-[#1D2538]/5 text-[#1D2538] py-3 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-[#1D2538]/10 transition-colors">
+                        <Copy size={18} /> {copyStatus || 'Kopiera listan (för SMS)'}
+                    </button>
+                )}
+
+                {completedGroceries.length > 0 && (
+                    <div className="mt-8 pt-6 border-t border-[#1D2538]/10">
+                        <div className="flex justify-between items-center mb-3 ml-1">
+                            <h3 className="text-xs font-black text-[#1D2538]/50 uppercase tracking-widest flex items-center gap-2">
+                                <Archive size={15} /> Arkiv – Matvaror ({completedGroceries.length})
+                            </h3>
+                            <button
+                                onClick={() => updateData('groceries', groceries.filter(g => !g.completed))}
+                                className="text-[11px] font-black text-[#581625]/60 hover:text-[#581625]"
+                            >
+                                Rensa arkiv
+                            </button>
+                        </div>
+                        <div className="space-y-2.5">
+                            {completedGroceries.map(item => (
+                                <div key={item.id} className="bg-white/70 p-3.5 rounded-3xl border border-[#1D2538]/10 flex gap-3 items-center">
+                                    <button onClick={() => toggleGroceryComplete(item.id)} className="flex-shrink-0 w-6 h-6 rounded-full bg-[#1D2538]/80 text-white flex items-center justify-center hover:bg-[#E55835]">
+                                        <Check size={14} />
+                                    </button>
+                                    <span className="flex-1 font-bold text-sm text-[#1D2538]/60 line-through truncate">
+                                        {item.title} {item.amount ? `(${item.amount})` : ''}
+                                    </span>
+                                    <button
+                                        onClick={() => toggleGroceryComplete(item.id)}
+                                        className="bg-[#F7F4EE] hover:bg-[#E55835]/15 text-[#1D2538] hover:text-[#E55835] text-xs font-black px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors shrink-0"
+                                    >
+                                        <RotateCcw size={13} /> Återskapa
+                                    </button>
+                                    <button onClick={() => deleteGrocery(item.id)} className="text-[#1D2538]/30 hover:text-[#581625] p-1 shrink-0">
+                                        <Trash2 size={17} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
               </>
           )}
         </div>
@@ -865,22 +1023,70 @@
                             <option value="">Vem ska göra detta?</option>
                             {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                         </select>
+                        <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="bg-[#F7F4EE] px-3 py-3 rounded-2xl font-bold text-sm outline-none w-36" />
                         <button type="submit" disabled={!title.trim()} className="bg-[#581625] text-white px-5 rounded-2xl font-bold">{editingId ? 'Spara' : 'Lägg till'}</button>
                     </div>
                 </form>
 
                 <div className="space-y-3">
-                    {activeTodos.map(todo => (
-                        <div key={todo.id} className="bg-white p-4 rounded-3xl shadow-sm border flex gap-4 items-center">
-                            <button onClick={() => toggleComplete(todo.id)} className="flex-shrink-0 w-6 h-6 rounded-full border-2 border-[#1D2538]/20 hover:border-[#1D2538]"></button>
-                            <div className="flex-1">
-                                <h4 className="font-bold leading-tight text-lg">{todo.title}</h4>
-                                {todo.notes && <p className="text-xs font-semibold text-[#1D2538]/60 mt-1">{todo.notes}</p>}
+                    {activeTodos.map(todo => {
+                        const assignedMember = members.find(m => m.id === todo.memberId);
+                        return (
+                            <div key={todo.id} className="bg-white p-4 rounded-3xl shadow-sm border flex gap-4 items-center">
+                                <button onClick={() => toggleComplete(todo.id)} className="flex-shrink-0 w-6 h-6 rounded-full border-2 border-[#1D2538]/20 hover:border-[#1D2538]"></button>
+                                <div className="flex-1">
+                                    <h4 className="font-bold leading-tight text-lg">{todo.title}</h4>
+                                    {todo.notes && <p className="text-xs font-semibold text-[#1D2538]/60 mt-1">{todo.notes}</p>}
+                                    {(assignedMember || todo.dueDate) && (
+                                        <div className="flex flex-wrap gap-1.5 mt-2">
+                                            {assignedMember && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${getTagColor(assignedMember.name)}`}>{assignedMember.name}</span>}
+                                            {todo.dueDate && <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-[#F7F4EE] text-[#1D2538]/70">Senast: {todo.dueDate}</span>}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <button onClick={() => { setTitle(todo.title); setNotes(todo.notes || ''); setMemberId(todo.memberId || ''); setDueDate(todo.dueDate || ''); setEditingId(todo.id); }} className="text-[#1D2538]/30 hover:text-[#1D2538]"><Edit3 size={18} /></button>
+                                    <button onClick={() => deleteTodo(todo.id)} className="text-[#1D2538]/30 hover:text-[#581625]"><Trash2 size={18} /></button>
+                                </div>
                             </div>
-                            <button onClick={() => deleteTodo(todo.id)} className="text-[#1D2538]/30 hover:text-[#581625]"><Trash2 size={18} /></button>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
+
+                {completedTodos.length > 0 && (
+                    <div className="mt-8 pt-6 border-t border-[#1D2538]/10">
+                        <div className="flex justify-between items-center mb-3 ml-1">
+                            <h3 className="text-xs font-black text-[#1D2538]/50 uppercase tracking-widest flex items-center gap-2">
+                                <Archive size={15} /> Arkiv – Klara uppgifter ({completedTodos.length})
+                            </h3>
+                            <button
+                                onClick={() => updateData('todos', todos.filter(t => !t.completed))}
+                                className="text-[11px] font-black text-[#581625]/60 hover:text-[#581625]"
+                            >
+                                Rensa arkiv
+                            </button>
+                        </div>
+                        <div className="space-y-2.5">
+                            {completedTodos.map(todo => (
+                                <div key={todo.id} className="bg-white/70 p-3.5 rounded-3xl border border-[#1D2538]/10 flex gap-3 items-center">
+                                    <button onClick={() => toggleComplete(todo.id)} className="flex-shrink-0 w-6 h-6 rounded-full bg-[#1D2538]/80 text-white flex items-center justify-center hover:bg-[#E55835]">
+                                        <Check size={14} />
+                                    </button>
+                                    <span className="flex-1 font-bold text-sm text-[#1D2538]/60 line-through truncate">{todo.title}</span>
+                                    <button
+                                        onClick={() => toggleComplete(todo.id)}
+                                        className="bg-[#F7F4EE] hover:bg-[#E55835]/15 text-[#1D2538] hover:text-[#E55835] text-xs font-black px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors shrink-0"
+                                    >
+                                        <RotateCcw size={13} /> Återskapa
+                                    </button>
+                                    <button onClick={() => deleteTodo(todo.id)} className="text-[#1D2538]/30 hover:text-[#581625] p-1 shrink-0">
+                                        <Trash2 size={17} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -1559,6 +1765,11 @@
               </div>
             </button>
           ))}
+          <div className="pt-4 flex justify-center">
+            <button onClick={() => signOut(auth)} className="flex items-center gap-2 text-sm font-bold text-[#1D2538]/50 hover:text-[#581625] px-5 py-3 bg-white rounded-2xl shadow-sm border">
+              <LogOut size={16} /> Logga ut
+            </button>
+          </div>
         </div>
       )
     }
