@@ -2194,11 +2194,11 @@
 
     // === SLUT PÅ DEL 1 - KLISTRA IN DEL 2 HÄR UNDER ===
 
-        // === START PÅ DEL 2 (KLISTRA IN DIREKT UNDER DEL 1) ===
+    // === START PÅ DEL 2 (KLISTRA IN DIREKT UNDER DEL 1) ===
 
 
 
-    // --- ATT GÖRA (MED FRITEXT, REDIGERING & ARKIV/ÅTERSKAPA) ---
+    // --- ATT GÖRA (MED FRITEXT, ÅTERKOMMANDE RUTINER, REDIGERING & ARKIV) ---
 
     function TodoList({ todos = [], members = [], updateData, editItemId, setEditItemId }) {
 
@@ -2209,6 +2209,8 @@
       const [memberId, setMemberId] = useState('');
 
       const [dueDate, setDueDate] = useState('');
+
+      const [recurrence, setRecurrence] = useState('');
 
       const [editingId, setEditingId] = useState(null);
 
@@ -2236,6 +2238,8 @@
 
             setDueDate(t.dueDate || '');
 
+            setRecurrence(t.recurrence || '');
+
             setEditingId(t.id);
 
             setEditItemId(null);
@@ -2256,13 +2260,13 @@
 
         if (editingId) {
 
-          updateData('todos', todos.map(t => t.id === editingId ? { ...t, title, notes, memberId, dueDate } : t));
+          updateData('todos', todos.map(t => t.id === editingId ? { ...t, title, notes, memberId, dueDate, recurrence } : t));
 
           setEditingId(null);
 
         } else {
 
-          updateData('todos', [...todos, { id: generateId(), title, notes, memberId, dueDate, completed: false }]);
+          updateData('todos', [...todos, { id: generateId(), title, notes, memberId, dueDate, recurrence, completed: false }]);
 
         }
 
@@ -2274,7 +2278,7 @@
 
       const editTodo = (t) => {
 
-        setTitle(t.title); setNotes(t.notes || ''); setMemberId(t.memberId || ''); setDueDate(t.dueDate || ''); setEditingId(t.id);
+        setTitle(t.title); setNotes(t.notes || ''); setMemberId(t.memberId || ''); setDueDate(t.dueDate || ''); setRecurrence(t.recurrence || ''); setEditingId(t.id);
 
       };
 
@@ -2282,15 +2286,53 @@
 
       const resetForm = () => {
 
-        setTitle(''); setNotes(''); setMemberId(''); setDueDate(''); setEditingId(null);
+        setTitle(''); setNotes(''); setMemberId(''); setDueDate(''); setRecurrence(''); setEditingId(null);
 
       };
 
 
 
-      const toggleComplete = (id) => updateData('todos', todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+      const getNextDueDate = (currentDue, recType) => {
+
+        const base = currentDue ? new Date(currentDue + 'T12:00:00') : new Date();
+
+        if (recType === 'weekly') base.setDate(base.getDate() + 7);
+
+        else if (recType === 'biweekly') base.setDate(base.getDate() + 14);
+
+        else if (recType === 'monthly') base.setMonth(base.getMonth() + 1);
+
+        return base.toISOString().split('T')[0];
+
+      };
+
+
+
+      const toggleComplete = (todo) => {
+
+        if (!todo.completed && todo.recurrence) {
+
+          const nextDate = getNextDueDate(todo.dueDate, todo.recurrence);
+
+          const nextTodo = { ...todo, id: generateId(), dueDate: nextDate, completed: false };
+
+          updateData('todos', [nextTodo, ...todos.map(t => t.id === todo.id ? { ...t, completed: true } : t)]);
+
+        } else {
+
+          updateData('todos', todos.map(t => t.id === todo.id ? { ...t, completed: !t.completed } : t));
+
+        }
+
+      };
+
+
 
       const deleteTodo = (id) => updateData('todos', todos.filter(t => t.id !== id));
+
+
+
+      const recLabels = { weekly: '🔄 Varje vecka', biweekly: '🔄 Varannan vecka', monthly: '🔄 Varje månad' };
 
 
 
@@ -2300,13 +2342,13 @@
 
           <form onSubmit={handleSave} className="bg-white rounded-3xl shadow-sm border p-4 mb-6 space-y-3">
 
-            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Lägg till ny uppgift..." className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold outline-none" />
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Lägg till ny uppgift eller rutin..." className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold outline-none" />
 
             <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Fritext / Mer information / Detaljer..." rows={2} className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold text-sm outline-none resize-none" />
 
-            <div className="flex flex-wrap sm:flex-nowrap gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
 
-              <select value={memberId} onChange={e => setMemberId(e.target.value)} className="flex-1 bg-[#F7F4EE] px-3 py-3 rounded-2xl font-bold text-sm outline-none">
+              <select value={memberId} onChange={e => setMemberId(e.target.value)} className="bg-[#F7F4EE] px-3 py-3 rounded-2xl font-bold text-sm outline-none">
 
                 <option value="">Vem ska göra detta?</option>
 
@@ -2314,11 +2356,27 @@
 
               </select>
 
-              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="bg-[#F7F4EE] px-3 py-3 rounded-2xl font-bold text-sm outline-none w-36" />
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="bg-[#F7F4EE] px-3 py-3 rounded-2xl font-bold text-sm outline-none" />
 
-              <button type="submit" disabled={!title.trim()} className="bg-[#581625] text-white px-5 py-3 rounded-2xl font-bold disabled:opacity-50">{editingId ? 'Spara' : 'Lägg till'}</button>
+              <select value={recurrence} onChange={e => setRecurrence(e.target.value)} className="bg-[#F7F4EE] px-3 py-3 rounded-2xl font-bold text-sm outline-none">
 
-              {editingId && <button type="button" onClick={resetForm} className="px-3 py-3 rounded-2xl bg-[#1D2538]/10 text-xs font-black">Avbryt</button>}
+                <option value="">Engångsuppgift</option>
+
+                <option value="weekly">🔄 Varje vecka</option>
+
+                <option value="biweekly">🔄 Varannan vecka</option>
+
+                <option value="monthly">🔄 Varje månad</option>
+
+              </select>
+
+            </div>
+
+            <div className="flex gap-2">
+
+              <button type="submit" disabled={!title.trim()} className="flex-1 bg-[#581625] text-white px-5 py-3 rounded-2xl font-black disabled:opacity-50">{editingId ? 'Spara ändring' : 'Lägg till uppgift'}</button>
+
+              {editingId && <button type="button" onClick={resetForm} className="px-4 py-3 rounded-2xl bg-[#1D2538]/10 text-xs font-black">Avbryt</button>}
 
             </div>
 
@@ -2332,7 +2390,7 @@
 
               <div key={todo.id} className="bg-white p-4 rounded-3xl shadow-sm border flex gap-4 items-start">
 
-                <button onClick={() => toggleComplete(todo.id)} className="mt-1 flex-shrink-0 w-6 h-6 rounded-full border-2 border-[#1D2538]/20 hover:border-[#E55835]"></button>
+                <button onClick={() => toggleComplete(todo)} className="mt-1 flex-shrink-0 w-6 h-6 rounded-full border-2 border-[#1D2538]/20 hover:border-[#E55835]"></button>
 
                 <div className="flex-1">
 
@@ -2345,6 +2403,8 @@
                     {todo.memberId && <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-lg ${getTagColor(members.find(m => m.id === todo.memberId)?.name)}`}>{members.find(m => m.id === todo.memberId)?.name}</span>}
 
                     {todo.dueDate && <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-lg bg-[#F7F4EE] text-[#1D2538]">Senast: {todo.dueDate}</span>}
+
+                    {todo.recurrence && <span className="inline-block text-[10px] font-black px-2 py-0.5 rounded-lg bg-[#E55835]/10 text-[#E55835]">{recLabels[todo.recurrence]}</span>}
 
                   </div>
 
@@ -2378,7 +2438,7 @@
 
                   <div key={todo.id} className="bg-white/60 p-3.5 rounded-3xl border flex gap-3 items-center">
 
-                    <button onClick={() => toggleComplete(todo.id)} className="px-3 py-1.5 rounded-xl bg-[#1D2538]/10 text-[#1D2538] text-xs font-black flex items-center gap-1">
+                    <button onClick={() => toggleComplete(todo)} className="px-3 py-1.5 rounded-xl bg-[#1D2538]/10 text-[#1D2538] text-xs font-black flex items-center gap-1">
 
                       <RotateCcw size={12} /> Återskapa
 
@@ -2406,7 +2466,7 @@
 
 
 
-    // --- MATSEDEL MED AI-INKÖP, RECEPTBANK & ORECENSERADE RECEPT ---
+    // --- MATSEDEL MED SMART SLUMPGENERATOR, AI-INKÖP, RECEPTBANK & ORECENSERADE RECEPT ---
 
     function MealPlanner({ meals = {}, recipes = [], dismissedRecipes = [], updateData }) {
 
@@ -2427,8 +2487,6 @@
       const [successMsg, setSuccessMsg] = useState('');
 
 
-
-      // Formulär för Receptbanken
 
       const [recTitle, setRecTitle] = useState('');
 
@@ -2486,6 +2544,56 @@
 
 
 
+      // Smart slumpgenerator som prioriterar snabblagat på vardagar och hög smak på helgen
+
+      const autoFillWeekFromBank = () => {
+
+        if (recipes.length === 0) {
+
+          setSuccessMsg('⚠️ Spara minst ett recept i Receptbanken först!');
+
+          setTimeout(() => setSuccessMsg(''), 3000);
+
+          return;
+
+        }
+
+        const weekdayPool = [...recipes].sort((a, b) => (b.ease + b.taste) - (a.ease + a.taste) + (Math.random() - 0.5));
+
+        const weekendPool = [...recipes].sort((a, b) => (b.taste * 2) - (a.taste * 2) + (Math.random() - 0.5));
+
+        const usedIds = new Set();
+
+        const nextWeekObj = { ...(meals[activeWeek] || {}) };
+
+
+
+        days.forEach((d, idx) => {
+
+          const isWeekend = idx >= 4;
+
+          const pool = isWeekend ? weekendPool : weekdayPool;
+
+          let chosen = pool.find(r => !usedIds.has(r.id)) || pool[idx % pool.length];
+
+          usedIds.add(chosen.id);
+
+          nextWeekObj[d] = { title: chosen.title, link: chosen.link || '' };
+
+        });
+
+
+
+        updateData('meals', prev => ({ ...prev, [activeWeek]: nextWeekObj }));
+
+        setSuccessMsg('✨ Veckomenyn fylldes med era favoriter (enkelt må-to, extra gott till helgen)!');
+
+        setTimeout(() => setSuccessMsg(''), 3500);
+
+      };
+
+
+
       const fetchIngredients = async (day) => {
 
         const mealObj = meals[activeWeek]?.[day] || {};
@@ -2536,8 +2644,6 @@
 
         } catch (error) {
 
-          // Fallback om AI-nyckel saknas i webbläsaren: lägger till rätten med länk på inköpslistan
-
           updateData('groceries', prev => [...(prev || []), { id: generateId(), amount: `${portions} port`, title: `Ingredienser till ${mealObj.title || 'Recept'}`, completed: false }]);
 
           setSuccessMsg('✅ Tillagd på inköpslistan!');
@@ -2577,8 +2683,6 @@
       };
 
 
-
-      // Hitta rätter i veckomenyn som ännu inte är sparade i receptbanken
 
       const unreviewedMeals = useMemo(() => {
 
@@ -2660,13 +2764,21 @@
 
             <>
 
-              <div className="flex bg-[#F7F4EE] rounded-2xl p-1 mb-5 border">
+              <div className="flex bg-[#F7F4EE] rounded-2xl p-1 mb-4 border">
 
                 <button onClick={() => setActiveWeek('current')} className={`flex-1 py-2 text-xs font-black rounded-xl ${activeWeek === 'current' ? 'bg-white shadow-sm text-[#E55835]' : 'text-[#1D2538]/50'}`}>Denna vecka</button>
 
                 <button onClick={() => setActiveWeek('next')} className={`flex-1 py-2 text-xs font-black rounded-xl ${activeWeek === 'next' ? 'bg-white shadow-sm text-[#1D2538]' : 'text-[#1D2538]/50'}`}>Nästa vecka</button>
 
               </div>
+
+
+
+              <button onClick={autoFillWeekFromBank} className="w-full mb-5 bg-gradient-to-r from-[#581625] to-[#731E32] text-white py-3 rounded-2xl font-black text-xs shadow-md flex items-center justify-center gap-2 hover:opacity-95 active:scale-98 transition-all">
+
+                <Sparkles size={16} /> Slumpa veckomeny utifrån era betyg
+
+              </button>
 
 
 
@@ -2808,8 +2920,6 @@
 
             <div className="space-y-6">
 
-              {/* FORMULÄR FÖR RECEPTBANKEN */}
-
               <form onSubmit={handleSaveRecipe} className="bg-white p-5 rounded-3xl shadow-sm border space-y-3">
 
                 <h3 className="font-black text-base text-[#1D2538]">{editingRecId ? 'Redigera recept' : 'Spara nytt recept i banken'}</h3>
@@ -2851,8 +2961,6 @@
               </form>
 
 
-
-              {/* ORECENSERADE RECEPT FRÅN VECKOMENYN */}
 
               {unreviewedMeals.length > 0 && (
 
@@ -2899,8 +3007,6 @@
               )}
 
 
-
-              {/* SPARADE RECEPT I BANKEN */}
 
               <div className="space-y-3">
 
@@ -3058,8 +3164,6 @@
 
             <>
 
-              {/* GRAF-KORT INSPIRERAT AV BIFOGADE BILDER */}
-
               <div className="bg-white rounded-[2.2rem] p-6 shadow-sm border border-[#1D2538]/5 overflow-hidden">
 
                 <div className="flex justify-between items-start mb-4">
@@ -3089,8 +3193,6 @@
                 </div>
 
 
-
-                {/* SKIKTAD HORMONKURVA (SVG) */}
 
                 <div className="relative mt-4 mb-2">
 
@@ -3126,8 +3228,6 @@
 
 
 
-                    {/* Streckade vertikala faslinjer */}
-
                     <line x1="115" y1="15" x2="115" y2="165" stroke="#A855F7" strokeDasharray="3 3" strokeOpacity="0.4" />
 
                     <line x1="255" y1="15" x2="255" y2="165" stroke="#F97360" strokeDasharray="3 3" strokeOpacity="0.4" />
@@ -3136,25 +3236,13 @@
 
 
 
-                    {/* Progesteron (Blå våg i Lutealfasen) */}
-
                     <path d="M 0 165 L 0 158 C 140 158, 250 155, 310 120 C 370 65, 430 35, 475 40 C 520 45, 565 130, 600 158 L 600 165 Z" fill="url(#progGrad)" />
 
-                    
-
-                    {/* Östrogen (Korallröd topp före ägglossning + mindre våg i luteal) */}
-
                     <path d="M 0 165 L 0 155 C 90 152, 160 140, 220 75 C 255 38, 280 42, 310 110 C 350 140, 410 105, 465 110 C 520 115, 565 148, 600 156 L 600 165 Z" fill="url(#estGrad)" />
-
-
-
-                    {/* FSH (Lila våg med pik vid ägglossning) */}
 
                     <path d="M 0 165 L 0 148 C 70 135, 140 138, 230 142 C 265 130, 280 78, 295 78 C 310 78, 325 135, 360 148 C 440 155, 530 155, 600 152 L 600 165 Z" fill="url(#fshGrad)" />
 
 
-
-                    {/* Etiketter i kurvorna */}
 
                     <text x="282" y="128" fill="#ffffff" fontSize="11" fontWeight="900">FSH</text>
 
@@ -3164,8 +3252,6 @@
 
 
 
-                    {/* Aktuell cykeldag-markör */}
-
                     <line x1={markerX} y1="10" x2={markerX} y2="165" stroke="#1D2538" strokeWidth="2" />
 
                     <circle cx={markerX} cy="15" r="5" fill="#1D2538" />
@@ -3173,8 +3259,6 @@
                   </svg>
 
 
-
-                  {/* Tidslinje med 28 prickar och fas-etiketter */}
 
                   <div className="mt-1">
 
@@ -3232,8 +3316,6 @@
 
 
 
-              {/* DAGENS INSIKTER (VÄLMÅENDE, FYSISKT, NÄRING + PARTNERTIPS) */}
-
               {cycleInfo && (
 
                 <div className="space-y-3">
@@ -3283,8 +3365,6 @@
               )}
 
 
-
-              {/* LOGGNING & HISTORIK (ENDAST DEN SPÅRADE PERSONEN KAN LOGGA/ÄNDRA) */}
 
               {canLog ? (
 
@@ -3487,6 +3567,750 @@
                 <p className="text-xs font-black uppercase tracking-wider text-[#581625]">{info.stage}</p>
 
                 <p className="text-sm font-bold text-[#1D2538]/75 leading-relaxed bg-[#F7F4EE] p-4 rounded-2xl">{info.tip}</p>
+
+              </div>
+
+            );
+
+          })}
+
+        </div>
+
+      );
+
+    }
+
+
+
+    // --- NY FUNKTION 1: ÅTERANVÄNDBARA PACKLISTOR ---
+
+    function PackingLists({ packingLists = [], updateData, setActiveTab }) {
+
+      const [listName, setListName] = useState('');
+
+      const [activeListId, setActiveListId] = useState(packingLists[0]?.id || null);
+
+      const [newItemText, setNewItemText] = useState('');
+
+
+
+      const templates = [
+
+        { name: '🏊 Badhuset', items: ['Badkläder', 'Handdukar', 'Hänglås till skåp', 'Schampo & tvål', 'Simglasögon / Armpuffar', 'Frukt / Mellanmål efter badet'] },
+
+        { name: '🧳 Weekendresa', items: ['Underkläder & strumpor', 'Ombyteskläder', 'Tandborstar & tandkräm', 'Mobilladdare', 'Pyjamas & gosedjur', 'Regnkläder efter väder'] },
+
+        { name: '🎒 Förskola / Utflykt', items: ['Extrakläder i lådan', 'Regnställ & stövlar', 'Vattenflaska', 'Sittunderlag', 'Solkräm / Mössa & vantar'] }
+
+      ];
+
+
+
+      const addTemplate = (tpl) => {
+
+        const newList = {
+
+          id: generateId(),
+
+          name: tpl.name,
+
+          items: tpl.items.map(t => ({ id: generateId(), text: t, checked: false }))
+
+        };
+
+        const updated = [...packingLists, newList];
+
+        updateData('packingLists', updated);
+
+        setActiveListId(newList.id);
+
+      };
+
+
+
+      const createCustomList = (e) => {
+
+        e.preventDefault();
+
+        if (!listName.trim()) return;
+
+        const newList = { id: generateId(), name: listName.trim(), items: [] };
+
+        updateData('packingLists', [...packingLists, newList]);
+
+        setActiveListId(newList.id);
+
+        setListName('');
+
+      };
+
+
+
+      const currentList = packingLists.find(l => l.id === activeListId) || packingLists[0];
+
+
+
+      const addItemToCurrent = (e) => {
+
+        e.preventDefault();
+
+        if (!newItemText.trim() || !currentList) return;
+
+        const updated = packingLists.map(l => l.id === currentList.id ? {
+
+          ...l, items: [...(l.items || []), { id: generateId(), text: newItemText.trim(), checked: false }]
+
+        } : l);
+
+        updateData('packingLists', updated);
+
+        setNewItemText('');
+
+      };
+
+
+
+      const togglePackItem = (itemId) => {
+
+        const updated = packingLists.map(l => l.id === currentList.id ? {
+
+          ...l, items: l.items.map(i => i.id === itemId ? { ...i, checked: !i.checked } : i)
+
+        } : l);
+
+        updateData('packingLists', updated);
+
+      };
+
+
+
+      const resetCurrentList = () => {
+
+        const updated = packingLists.map(l => l.id === currentList.id ? {
+
+          ...l, items: l.items.map(i => ({ ...i, checked: false }))
+
+        } : l);
+
+        updateData('packingLists', updated);
+
+      };
+
+
+
+      const deleteList = (id) => {
+
+        const rest = packingLists.filter(l => l.id !== id);
+
+        updateData('packingLists', rest);
+
+        setActiveListId(rest[0]?.id || null);
+
+      };
+
+
+
+      return (
+
+        <div className="p-4 sm:p-6 pb-32 h-full overflow-y-auto max-w-2xl mx-auto space-y-5">
+
+          <button onClick={() => setActiveTab('menu')} className="text-[#1D2538]/50 font-bold text-sm flex items-center gap-1 hover:text-[#1D2538]">
+
+            <ChevronDown className="rotate-90" size={16}/> Tillbaka
+
+          </button>
+
+
+
+          <div className="bg-gradient-to-br from-[#4B88C4] to-[#2B5B84] rounded-3xl p-6 text-white shadow-lg">
+
+            <h2 className="text-2xl font-black">🎒 Packlistor & Checklistor</h2>
+
+            <p className="text-white/80 text-xs font-bold mt-1">Bocka av medan ni packar och nollställ listan med ett klick inför nästa resa!</p>
+
+          </div>
+
+
+
+          <div className="flex flex-wrap gap-2">
+
+            {templates.map((tpl, i) => (
+
+              <button key={i} onClick={() => addTemplate(tpl)} className="bg-white border px-3 py-2 rounded-2xl text-xs font-black text-[#1D2538] hover:border-[#4B88C4] shadow-sm">
+
+                + Mall: {tpl.name}
+
+              </button>
+
+            ))}
+
+          </div>
+
+
+
+          <form onSubmit={createCustomList} className="flex gap-2 bg-white p-2 rounded-3xl border shadow-sm">
+
+            <input value={listName} onChange={e => setListName(e.target.value)} placeholder="Skapa ny egen packlista (t.ex. Fjällen)..." className="flex-1 bg-transparent px-4 py-2.5 font-bold text-sm outline-none" />
+
+            <button type="submit" disabled={!listName.trim()} className="bg-[#1D2538] text-white px-5 rounded-2xl font-black text-xs disabled:opacity-50">Skapa</button>
+
+          </form>
+
+
+
+          {packingLists.length > 0 && (
+
+            <>
+
+              <div className="flex gap-2 overflow-x-auto pb-1">
+
+                {packingLists.map(l => (
+
+                  <button key={l.id} onClick={() => setActiveListId(l.id)} className={`px-4 py-2.5 rounded-2xl text-xs font-black shrink-0 transition-all ${currentList?.id === l.id ? 'bg-[#581625] text-white shadow-md' : 'bg-white text-[#1D2538]/70 border'}`}>
+
+                    {l.name} ({(l.items || []).filter(i => i.checked).length}/{(l.items || []).length})
+
+                  </button>
+
+                ))}
+
+              </div>
+
+
+
+              {currentList && (
+
+                <div className="bg-white rounded-3xl p-5 shadow-sm border space-y-4">
+
+                  <div className="flex justify-between items-center border-b pb-3">
+
+                    <h3 className="font-black text-lg text-[#1D2538]">{currentList.name}</h3>
+
+                    <div className="flex items-center gap-2">
+
+                      <button onClick={resetCurrentList} className="bg-[#E55835]/10 text-[#E55835] px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 hover:bg-[#E55835] hover:text-white transition-colors">
+
+                        <RotateCcw size={13}/> Nollställ lista
+
+                      </button>
+
+                      <button onClick={() => deleteList(currentList.id)} className="text-[#1D2538]/30 hover:text-[#581625] p-1"><Trash2 size={18}/></button>
+
+                    </div>
+
+                  </div>
+
+
+
+                  <form onSubmit={addItemToCurrent} className="flex gap-2">
+
+                    <input value={newItemText} onChange={e => setNewItemText(e.target.value)} placeholder="Lägg till sak att packa..." className="flex-1 bg-[#F7F4EE] px-4 py-2.5 rounded-2xl font-bold text-sm outline-none" />
+
+                    <button type="submit" disabled={!newItemText.trim()} className="bg-[#1D2538] text-white px-4 rounded-2xl font-black text-xs">Lägg till</button>
+
+                  </form>
+
+
+
+                  <div className="space-y-2">
+
+                    {(currentList.items || []).map(item => (
+
+                      <div key={item.id} onClick={() => togglePackItem(item.id)} className={`p-3.5 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${item.checked ? 'bg-[#F7F4EE]/50 opacity-60' : 'bg-[#F7F4EE]'}`}>
+
+                        <div className="flex items-center gap-3">
+
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 ${item.checked ? 'bg-[#1D2538] border-[#1D2538] text-white' : 'border-[#1D2538]/30'}`}>
+
+                            {item.checked && <Check size={12}/>}
+
+                          </div>
+
+                          <span className={`font-bold text-sm ${item.checked ? 'line-through text-[#1D2538]/50' : 'text-[#1D2538]'}`}>{item.text}</span>
+
+                        </div>
+
+                        <button onClick={(e) => { e.stopPropagation(); updateData('packingLists', packingLists.map(l => l.id === currentList.id ? { ...l, items: l.items.filter(x => x.id !== item.id) } : l)); }} className="text-[#1D2538]/30 hover:text-[#581625]"><X size={16}/></button>
+
+                      </div>
+
+                    ))}
+
+                  </div>
+
+                </div>
+
+              )}
+
+            </>
+
+          )}
+
+        </div>
+
+      );
+
+    }
+
+
+
+    // --- NY FUNKTION 2: PRESENT- & ÖNSKELISTOR (MED HEMLIGT ÖVERRASKNINGSLÄGE) ---
+
+    function GiftLists({ giftLists = [], members = [], updateData, setActiveTab, localProfileId }) {
+
+      const [title, setTitle] = useState('');
+
+      const [forMemberId, setForMemberId] = useState(members[0]?.id || '');
+
+      const [notes, setNotes] = useState('');
+
+      const [link, setLink] = useState('');
+
+      const [isSecret, setIsSecret] = useState(true);
+
+
+
+      const handleAddGift = (e) => {
+
+        e.preventDefault();
+
+        if (!title.trim()) return;
+
+        const newGift = { id: generateId(), title: title.trim(), forMemberId, notes: notes.trim(), link: link.trim(), isSecret, bought: false };
+
+        updateData('giftLists', [newGift, ...giftLists]);
+
+        setTitle(''); setNotes(''); setLink('');
+
+      };
+
+
+
+      const toggleBought = (id) => updateData('giftLists', giftLists.map(g => g.id === id ? { ...g, bought: !g.bought } : g));
+
+      const deleteGift = (id) => updateData('giftLists', giftLists.filter(g => g.id !== id));
+
+
+
+      // Dölj hemliga presenter som gäller den som är inloggad just nu!
+
+      const visibleGifts = giftLists.filter(g => !(g.isSecret && g.forMemberId === localProfileId));
+
+      const hiddenCount = giftLists.length - visibleGifts.length;
+
+
+
+      return (
+
+        <div className="p-4 sm:p-6 pb-32 h-full overflow-y-auto max-w-2xl mx-auto space-y-5">
+
+          <button onClick={() => setActiveTab('menu')} className="text-[#1D2538]/50 font-bold text-sm flex items-center gap-1 hover:text-[#1D2538]">
+
+            <ChevronDown className="rotate-90" size={16}/> Tillbaka
+
+          </button>
+
+
+
+          <div className="bg-gradient-to-br from-[#E55835] to-[#f07b5d] rounded-3xl p-6 text-white shadow-lg">
+
+            <h2 className="text-2xl font-black">🎁 Present- & Önskelistor</h2>
+
+            <p className="text-white/85 text-xs font-bold mt-1">Spara presentidéer året runt. Hemliga presenter döljs automatiskt för den som fyller år!</p>
+
+          </div>
+
+
+
+          {hiddenCount > 0 && (
+
+            <div className="bg-[#581625]/10 border border-[#581625]/20 p-3.5 rounded-2xl text-xs font-black text-[#581625] text-center">
+
+              🤫 Det finns {hiddenCount} hemlig(a) överraskning(ar) till dig som är dolda på din skärm!
+
+            </div>
+
+          )}
+
+
+
+          <form onSubmit={handleAddGift} className="bg-white rounded-3xl p-5 shadow-sm border space-y-3">
+
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Presentidé / Önskning (t.ex. Lego Technic)" className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold text-sm outline-none" />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+
+              <select value={forMemberId} onChange={e => setForMemberId(e.target.value)} className="bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold text-sm outline-none">
+
+                {members.map(m => <option key={m.id} value={m.id}>Till: {m.name}</option>)}
+
+                <option value="other">Till: Släkt / Vänner</option>
+
+              </select>
+
+              <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Pris / Butik / Färg..." className="bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold text-sm outline-none" />
+
+            </div>
+
+            <input type="url" value={link} onChange={e => setLink(e.target.value)} placeholder="Länk till produkten (frivilligt)" className="w-full bg-[#F7F4EE] px-4 py-2.5 rounded-2xl font-bold text-xs outline-none" />
+
+            <label className="flex items-center gap-2.5 text-xs font-black text-[#1D2538] cursor-pointer px-1 py-1">
+
+              <input type="checkbox" checked={isSecret} onChange={e => setIsSecret(e.target.checked)} className="w-4 h-4 accent-[#581625]" />
+
+              🤫 Hemlig överraskning (dölj när denna person är inloggad)
+
+            </label>
+
+            <button type="submit" disabled={!title.trim()} className="w-full bg-[#581625] text-white py-3 rounded-2xl font-black text-sm disabled:opacity-50">Spara presentidé</button>
+
+          </form>
+
+
+
+          <div className="space-y-3">
+
+            {visibleGifts.map(gift => {
+
+              const target = members.find(m => m.id === gift.forMemberId);
+
+              return (
+
+                <div key={gift.id} className={`bg-white p-4 rounded-3xl shadow-sm border flex items-center justify-between gap-3 ${gift.bought ? 'opacity-65 bg-[#F7F4EE]/60' : ''}`}>
+
+                  <div className="flex-1 min-w-0">
+
+                    <div className="flex items-center gap-2 flex-wrap">
+
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg ${getTagColor(target?.name || 'Släkt')}`}>
+
+                        {target ? target.name : 'Släkt/Vänner'}
+
+                      </span>
+
+                      {gift.isSecret && <span className="text-[10px] font-black bg-[#581625]/10 text-[#581625] px-2 py-0.5 rounded-lg">🤫 Hemlig</span>}
+
+                      {gift.bought && <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-lg">✅ Köpt!</span>}
+
+                    </div>
+
+                    <h4 className={`font-black text-base mt-1 ${gift.bought ? 'line-through text-[#1D2538]/60' : 'text-[#1D2538]'}`}>{gift.title}</h4>
+
+                    {gift.notes && <p className="text-xs font-bold text-[#1D2538]/60 mt-0.5">{gift.notes}</p>}
+
+                    {gift.link && (
+
+                      <a href={gift.link} target="_blank" rel="noopener noreferrer" className="text-[11px] font-black text-[#E55835] underline inline-flex items-center gap-1 mt-1">
+
+                        <ExternalLink size={11}/> Öppna länk
+
+                      </a>
+
+                    )}
+
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+
+                    <button onClick={() => toggleBought(gift.id)} className={`px-3 py-2 rounded-xl text-xs font-black ${gift.bought ? 'bg-[#1D2538]/10 text-[#1D2538]' : 'bg-[#E55835] text-white'}`}>
+
+                      {gift.bought ? 'Ångra' : 'Markera köpt'}
+
+                    </button>
+
+                    <button onClick={() => deleteGift(gift.id)} className="text-[#1D2538]/30 hover:text-[#581625] p-1"><Trash2 size={18}/></button>
+
+                  </div>
+
+                </div>
+
+              );
+
+            })}
+
+          </div>
+
+        </div>
+
+      );
+
+    }
+
+
+
+    // --- NY FUNKTION 3: FAMILJENS "VIKTIGA PÄRM" (ANSLAGSTAVLA) ---
+
+    function FamilyBinder({ binderItems = [], updateData, setActiveTab }) {
+
+      const [title, setTitle] = useState('');
+
+      const [category, setCategory] = useState('🏠 Hem & Koder');
+
+      const [value, setValue] = useState('');
+
+      const [copiedId, setCopiedId] = useState(null);
+
+
+
+      const categories = ['🏠 Hem & Koder', '🚗 Fordon & Däck', '🏥 Hälsa & Försäkring', '📞 Kontakter & Barnvakt', '❄️ Frys & Förråd'];
+
+
+
+      const addEntry = (e) => {
+
+        e.preventDefault();
+
+        if (!title.trim() || !value.trim()) return;
+
+        updateData('binderItems', [{ id: generateId(), category, title: title.trim(), value: value.trim() }, ...binderItems]);
+
+        setTitle(''); setValue('');
+
+      };
+
+
+
+      const copyValue = (item) => {
+
+        navigator.clipboard?.writeText(item.value);
+
+        setCopiedId(item.id);
+
+        setTimeout(() => setCopiedId(null), 2000);
+
+      };
+
+
+
+      return (
+
+        <div className="p-4 sm:p-6 pb-32 h-full overflow-y-auto max-w-2xl mx-auto space-y-5">
+
+          <button onClick={() => setActiveTab('menu')} className="text-[#1D2538]/50 font-bold text-sm flex items-center gap-1 hover:text-[#1D2538]">
+
+            <ChevronDown className="rotate-90" size={16}/> Tillbaka
+
+          </button>
+
+
+
+          <div className="bg-[#1D2538] rounded-3xl p-6 text-white shadow-lg">
+
+            <h2 className="text-2xl font-black">📁 Familjens viktiga pärm</h2>
+
+            <p className="text-white/75 text-xs font-bold mt-1">Allt man alltid letar efter i mobilen: försäkringsnummer, portkoder, däcktryck, allergier eller barnvaktens nummer.</p>
+
+          </div>
+
+
+
+          <form onSubmit={addEntry} className="bg-white rounded-3xl p-5 shadow-sm border space-y-3">
+
+            <select value={category} onChange={e => setCategory(e.target.value)} className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-black text-xs outline-none">
+
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+
+            </select>
+
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Rubrik (t.ex. Portkod Mormor / Försäkringsbolag)" className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold text-sm outline-none" />
+
+            <textarea value={value} onChange={e => setValue(e.target.value)} placeholder="Värde / Nummer / Anteckning..." rows={2} className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold text-sm outline-none resize-none" />
+
+            <button type="submit" disabled={!title.trim() || !value.trim()} className="w-full bg-[#581625] text-white py-3 rounded-2xl font-black text-sm disabled:opacity-50">Spara i pärmen</button>
+
+          </form>
+
+
+
+          <div className="space-y-3">
+
+            {binderItems.map(item => (
+
+              <div key={item.id} className="bg-white p-4 rounded-3xl shadow-sm border flex justify-between items-center gap-3">
+
+                <div className="flex-1 min-w-0">
+
+                  <span className="text-[10px] font-black text-[#E55835] uppercase">{item.category}</span>
+
+                  <h4 className="font-black text-base text-[#1D2538]">{item.title}</h4>
+
+                  <p className="text-sm font-bold text-[#1D2538]/80 bg-[#F7F4EE] px-3 py-2 rounded-xl mt-1.5 whitespace-pre-wrap">{item.value}</p>
+
+                </div>
+
+                <div className="flex flex-col gap-2 shrink-0">
+
+                  <button onClick={() => copyValue(item)} className="p-2.5 bg-[#F7F4EE] rounded-xl text-xs font-black text-[#1D2538] hover:bg-[#1D2538] hover:text-white transition-colors">
+
+                    {copiedId === item.id ? <Check size={16}/> : <Copy size={16}/>}
+
+                  </button>
+
+                  <button onClick={() => updateData('binderItems', binderItems.filter(x => x.id !== item.id))} className="p-2.5 text-[#1D2538]/30 hover:text-[#581625]"><Trash2 size={16}/></button>
+
+                </div>
+
+              </div>
+
+            ))}
+
+          </div>
+
+        </div>
+
+      );
+
+    }
+
+
+
+    // --- NY FUNKTION 4: STJÄRNJAKTEN & VECKOPENG FÖR BARNEN ---
+
+    function StarHunt({ starData = {}, members = [], updateData, setActiveTab }) {
+
+      const children = members.filter(m => m.role === 'Barn');
+
+      const quickDeeds = ['🛏️ Bäddat sängen', '🦷 Borstat tänderna utan tjat', '🍽️ Dukat av bordet', '🎒 Packat väskan', '🧸 Plockat undan leksaker'];
+
+
+
+      const addStar = (childId, reason) => {
+
+        const current = starData[childId] || { stars: 0, goal: 10, reward: '50 kr veckopeng / Fredagsmys', history: [] };
+
+        const updated = {
+
+          ...starData,
+
+          [childId]: {
+
+            ...current,
+
+            stars: (current.stars || 0) + 1,
+
+            history: [{ id: generateId(), reason, date: getLocalToday() }, ...(current.history || []).slice(0, 9)]
+
+          }
+
+        };
+
+        updateData('starData', updated);
+
+      };
+
+
+
+      const updateChildGoal = (childId, field, val) => {
+
+        const current = starData[childId] || { stars: 0, goal: 10, reward: '50 kr veckopeng / Fredagsmys', history: [] };
+
+        updateData('starData', { ...starData, [childId]: { ...current, [field]: val } });
+
+      };
+
+
+
+      const resetStars = (childId) => {
+
+        const current = starData[childId] || { stars: 0, goal: 10, reward: '50 kr veckopeng', history: [] };
+
+        updateData('starData', { ...starData, [childId]: { ...current, stars: 0, history: [] } });
+
+      };
+
+
+
+      return (
+
+        <div className="p-4 sm:p-6 pb-32 h-full overflow-y-auto max-w-2xl mx-auto space-y-5">
+
+          <button onClick={() => setActiveTab('menu')} className="text-[#1D2538]/50 font-bold text-sm flex items-center gap-1 hover:text-[#1D2538]">
+
+            <ChevronDown className="rotate-90" size={16}/> Tillbaka
+
+          </button>
+
+
+
+          <div className="bg-gradient-to-br from-[#F59E0B] to-[#E55835] rounded-3xl p-6 text-white shadow-lg">
+
+            <h2 className="text-2xl font-black flex items-center gap-2"><Star size={26}/> Stjärnjakten & Veckopeng</h2>
+
+            <p className="text-white/90 text-xs font-bold mt-1">Peppa barnen i vardagen! Samla stjärnor mot veckopeng eller en rolig familjebelöning.</p>
+
+          </div>
+
+
+
+          {children.map(child => {
+
+            const cData = starData[child.id] || { stars: 0, goal: 10, reward: '50 kr veckopeng / Fredagsbio', history: [] };
+
+            const pct = Math.min(100, Math.round(((cData.stars || 0) / (cData.goal || 10)) * 100));
+
+
+
+            return (
+
+              <div key={child.id} className="bg-white rounded-3xl p-5 shadow-sm border space-y-4">
+
+                <div className="flex justify-between items-center">
+
+                  <div>
+
+                    <h3 className="font-black text-xl text-[#1D2538]">{child.name}</h3>
+
+                    <p className="text-xs font-bold text-[#E55835]">Belöning: {cData.reward}</p>
+
+                  </div>
+
+                  <div className="bg-[#F59E0B]/15 text-[#D97706] px-4 py-2 rounded-2xl font-black text-lg flex items-center gap-1">
+
+                    ⭐ {cData.stars || 0} / {cData.goal || 10}
+
+                  </div>
+
+                </div>
+
+
+
+                <div className="w-full bg-[#F7F4EE] h-4 rounded-full overflow-hidden">
+
+                  <div className="bg-gradient-to-r from-[#F59E0B] to-[#E55835] h-full transition-all duration-500" style={{ width: `${pct}%` }} />
+
+                </div>
+
+
+
+                <div className="flex flex-wrap gap-2">
+
+                  {quickDeeds.map((deed, i) => (
+
+                    <button key={i} onClick={() => addStar(child.id, deed)} className="bg-[#F7F4EE] hover:bg-[#F59E0B]/20 text-[#1D2538] text-xs font-black px-3 py-2 rounded-xl transition-colors">
+
+                      +1 ⭐ {deed}
+
+                    </button>
+
+                  ))}
+
+                </div>
+
+
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+
+                  <input value={cData.reward} onChange={e => updateChildGoal(child.id, 'reward', e.target.value)} placeholder="Belöning..." className="bg-[#F7F4EE] px-3 py-2 rounded-xl text-xs font-bold outline-none" />
+
+                  <div className="flex items-center gap-2">
+
+                    <input type="number" min="1" max="50" value={cData.goal} onChange={e => updateChildGoal(child.id, 'goal', Number(e.target.value))} className="w-20 bg-[#F7F4EE] px-3 py-2 rounded-xl text-xs font-bold outline-none" />
+
+                    <button onClick={() => resetStars(child.id)} className="flex-1 bg-[#1D2538] text-white py-2 rounded-xl text-xs font-black">Lös in / Nollställ</button>
+
+                  </div>
+
+                </div>
 
               </div>
 
@@ -3774,15 +4598,23 @@
 
 
 
-    // --- MENY (MER) ---
+    // --- MENY (MER - NU MED ALLA NYA FUNKTIONER) ---
 
     function Menu({ setActiveTab }) {
 
       const items = [
 
-        { id: 'todo', title: 'Att göra', desc: 'Uppgifter, ansvar & arkiv', icon: <CheckSquare size={26} />, color: 'text-[#E55835]', bg: 'bg-[#E55835]/10' },
+        { id: 'todo', title: 'Att göra & Rutiner', desc: 'Uppgifter, återkommande rutiner & arkiv', icon: <CheckSquare size={26} />, color: 'text-[#E55835]', bg: 'bg-[#E55835]/10' },
 
         { id: 'health', title: 'Cykelkollen', desc: 'Hormonkurva, faser & partnertips', icon: <HeartPulse size={26} />, color: 'text-[#581625]', bg: 'bg-[#F2C4C4]' },
+
+        { id: 'packing', title: 'Packlistor & Resor', desc: 'Återanvändbara checklistor för badhus & resor', icon: <RotateCcw size={26} />, color: 'text-[#2B5B84]', bg: 'bg-[#A7CEF6]/30' },
+
+        { id: 'gifts', title: 'Present- & Önskelistor', desc: 'Spara presentidéer med hemligt överraskningsläge', icon: <Sparkles size={26} />, color: 'text-[#E55835]', bg: 'bg-[#E55835]/10' },
+
+        { id: 'binder', title: 'Familjens viktiga pärm', desc: 'Portkoder, försäkringsnummer, däcktryck & kontakter', icon: <BookOpen size={26} />, color: 'text-[#1D2538]', bg: 'bg-[#1D2538]/10' },
+
+        { id: 'stars', title: 'Stjärnjakten & Veckopeng', desc: 'Peppa barnen att samla stjärnor mot belöningar', icon: <Star size={26} />, color: 'text-[#D97706]', bg: 'bg-[#F59E0B]/15' },
 
         { id: 'child_dev', title: 'Barnens utveckling', desc: 'Råd och faser baserat på barnens ålder', icon: <Baby size={26} />, color: 'text-[#581625]', bg: 'bg-[#581625]/10' },
 
@@ -3794,15 +4626,15 @@
 
       return (
 
-        <div className="p-4 sm:p-6 pb-32 h-full overflow-y-auto max-w-2xl mx-auto space-y-3.5">
+        <div className="p-4 sm:p-6 pb-32 h-full overflow-y-auto max-w-2xl mx-auto space-y-3">
 
-          <h2 className="text-2xl font-black text-[#1D2538] mb-2">Utforska</h2>
+          <h2 className="text-2xl font-black text-[#1D2538] mb-2">Utforska alla verktyg</h2>
 
           {items.map(item => (
 
             <button key={item.id} onClick={() => setActiveTab(item.id)} className="w-full bg-white p-4 rounded-3xl shadow-sm border flex items-center gap-4 text-left hover:border-[#1D2538]/20 transition-all">
 
-              <div className={`${item.bg} ${item.color} p-4 rounded-2xl`}>{item.icon}</div>
+              <div className={`${item.bg} ${item.color} p-4 rounded-2xl shrink-0`}>{item.icon}</div>
 
               <div>
 
@@ -3912,6 +4744,14 @@
 
           case 'health': return <HealthTracker logs={data.healthLogs} members={data.members} settings={data.settings} updateData={updateData} setActiveTab={setActiveTab} localProfileId={localProfileId} />;
 
+          case 'packing': return <PackingLists packingLists={data.packingLists || []} updateData={updateData} setActiveTab={setActiveTab} />;
+
+          case 'gifts': return <GiftLists giftLists={data.giftLists || []} members={data.members} updateData={updateData} setActiveTab={setActiveTab} localProfileId={localProfileId} />;
+
+          case 'binder': return <FamilyBinder binderItems={data.binderItems || []} updateData={updateData} setActiveTab={setActiveTab} />;
+
+          case 'stars': return <StarHunt starData={data.starData || {}} members={data.members} updateData={updateData} setActiveTab={setActiveTab} />;
+
           case 'child_dev': return <ChildDevelopment members={data.members} setActiveTab={setActiveTab} />;
 
           case 'settings_family': return <SettingsFamily members={data.members} settings={data.settings} updateData={updateData} setActiveTab={setActiveTab} />;
@@ -3930,13 +4770,19 @@
 
       const getHeaderTitle = () => ({
 
-        dashboard: 'Familjehubb', shopping: 'Inköp', calendar: 'Kalender', todo: 'Att göra',
+        dashboard: 'Familjehubb', shopping: 'Inköp', calendar: 'Kalender', todo: 'Att göra & Rutiner',
 
         menu: 'Utforska', meals: 'Mat & Recept', settings_family: 'Inställningar',
 
-        settings_sizes: 'Kategorier', health: 'Cykelkollen', child_dev: 'Barnens utveckling'
+        settings_sizes: 'Kategorier', health: 'Cykelkollen', child_dev: 'Barnens utveckling',
+
+        packing: 'Packlistor', gifts: 'Önskelistor', binder: 'Viktiga pärmen', stars: 'Stjärnjakten'
 
       })[activeTab] || 'Familjehubb';
+
+
+
+      const moreTabs = ['menu', 'settings_family', 'settings_sizes', 'health', 'child_dev', 'todo', 'packing', 'gifts', 'binder', 'stars'];
 
 
 
@@ -3966,7 +4812,7 @@
 
                 <NavItem icon={<CalendarIcon />} label="Kalender" isActive={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} />
 
-                <NavItem icon={<Grid />} label="Mer" isActive={['menu', 'settings_family', 'settings_sizes', 'health', 'child_dev', 'todo'].includes(activeTab)} onClick={() => setActiveTab('menu')} />
+                <NavItem icon={<Grid />} label="Mer" isActive={moreTabs.includes(activeTab)} onClick={() => setActiveTab('menu')} />
 
               </div>
 
