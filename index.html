@@ -57,7 +57,7 @@
   <script type="text/babel" data-type="module">
     import React, { useState, useEffect } from 'react';
     import { createRoot } from 'react-dom/client';
-    import { Home, ShoppingCart, CheckSquare, Calendar as CalendarIcon, Grid, Plus, Trash2, Edit3, HeartPulse, User, Ruler, ChevronDown, Wind, Thermometer, Droplets, CloudRain, Check, X, Clock, Utensils, Sparkles, Loader2, Copy, LogOut, Sun, Cloud, CloudFog, CloudSnow, CloudLightning, Info, Baby, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
+    import { Home, ShoppingCart, CheckSquare, Calendar as CalendarIcon, Grid, Plus, Trash2, Edit3, HeartPulse, User, Ruler, ChevronDown, Wind, Thermometer, Droplets, CloudRain, Check, X, Clock, Utensils, Sparkles, Loader2, Copy, LogOut, Sun, Cloud, CloudFog, CloudSnow, CloudLightning, Info, Baby, Activity, ChevronLeft, ChevronRight, Star, BookOpen } from 'lucide-react';
     
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -131,7 +131,7 @@
           { id: generateId(), name: 'Pappa', role: 'Pappa', email: '', sizes: { 'Skor': '43', 'Skjorta': 'L' } },
           { id: generateId(), name: 'Barn', role: 'Barn', email: '', sizes: { 'Skor': '34', 'Ytterplagg': '134' }, birthDate: '2015-05-10' }
         ],
-        shoppingItems: [], groceries: [], todos: [], events: [], healthLogs: [],
+        shoppingItems: [], groceries: [], todos: [], events: [], healthLogs: [], recipes: [],
         meals: {
             current: { 'Mån': {}, 'Tis': {}, 'Ons': {}, 'Tors': {}, 'Fre': {}, 'Lör': {}, 'Sön': {} },
             next: { 'Mån': {}, 'Tis': {}, 'Ons': {}, 'Tors': {}, 'Fre': {}, 'Lör': {}, 'Sön': {} }
@@ -153,6 +153,7 @@
           if (docSnap.exists()) {
             const fetched = docSnap.data();
             if(!fetched.groceries) fetched.groceries = [];
+            if(!fetched.recipes) fetched.recipes = [];
             if(!fetched.meals) fetched.meals = initialData.meals;
             if(!fetched.settings) fetched.settings = initialData.settings;
             if(fetched.settings && !('cycleTrackerMemberId' in fetched.settings)) fetched.settings.cycleTrackerMemberId = '';
@@ -280,7 +281,7 @@
                   else if (cycleDay <= 13) { currentPhase = 'Follikulär fas'; partnerTips = 'Perfekt tid att planera in roliga familjeaktiviteter!'; }
                   else if (cycleDay <= 16) { currentPhase = 'Ägglossning'; partnerTips = 'Hög energi och socialt humör.'; }
                   else if (cycleDay <= 21) { currentPhase = 'Tidig Lutealfas'; partnerTips = 'Lugn stämning hemma uppskattas extra mycket nu.'; }
-                  else { currentPhase = 'Sen Lutealfas (PMS)'; partnerTips = 'Ha extra tålamod och avlasta med vardagssysslor.'; }
+                  else { currentPhase = 'Sen Lutealfas (PMS)'; partnerTips = 'Ha extra tålamod och avlasta direkt.'; }
               }
           }
       }
@@ -666,7 +667,6 @@
       const [editingId, setEditingId] = useState(null); 
       const [showForm, setShowForm] = useState(false);
 
-      // Månadsvy state
       const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
       const [selectedDateFilter, setSelectedDateFilter] = useState(null);
 
@@ -699,22 +699,18 @@
       const deleteEvent = (id) => updateData('events', events.filter(e => e.id !== id));
       const resetForm = () => { setTitle(''); setFromDate(''); setFromTime(''); setToDate(''); setToTime(''); setAppliesToId(''); setResponsibleId(''); setEditingId(null); setShowForm(false); };
 
-      // Generera månadskalender-dagar
       const year = currentMonthDate.getFullYear();
       const month = currentMonthDate.getMonth();
       const firstDayOfMonth = new Date(year, month, 1);
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       
-      // Veckodags-justering (Svenska: Mån-Sön)
       let startDayOfWeek = firstDayOfMonth.getDay() - 1;
       if (startDayOfWeek === -1) startDayOfWeek = 6;
 
       const monthNames = ["Januari", "Februari", "Mars", "April", "Maj", "Juni", "Juli", "Augusti", "September", "Oktober", "November", "December"];
 
       const calendarDays = [];
-      for (let i = 0; i < startDayOfWeek; i++) {
-          calendarDays.push(null); // Tomma rutor för föregående månad
-      }
+      for (let i = 0; i < startDayOfWeek; i++) { calendarDays.push(null); }
       for (let d = 1; d <= daysInMonth; d++) {
           const monthStr = String(month + 1).padStart(2, '0');
           const dayStr = String(d).padStart(2, '0');
@@ -771,7 +767,6 @@
               </form>
           )}
 
-          {/* MÅNADSRUTNÄT */}
           <div className="bg-white rounded-3xl p-4 shadow-sm border mb-6">
               <div className="grid grid-cols-7 gap-1 text-center font-black text-xs text-[#1D2538]/40 mb-2">
                   <span>Mån</span><span>Tis</span><span>Ons</span><span>Tors</span><span>Fre</span><span>Lör</span><span>Sön</span>
@@ -798,7 +793,6 @@
               </div>
           </div>
 
-          {/* HÄNDELSER FÖR VALT DATUM ELLER ALLA */}
           <div>
             <div className="flex justify-between items-center mb-3">
                 <h3 className="font-black text-lg text-[#1D2538]">{selectedDateFilter ? `Händelser ${selectedDateFilter}` : 'Alla händelser'}</h3>
@@ -890,10 +884,21 @@
         );
     }
 
-    // --- 5. MATSEDEL ---
-    function MealPlanner({ meals, updateData, setActiveTab }) {
+    // --- 5. MATSEDEL & RECEPTBANK ---
+    function MealPlanner({ meals, recipes, updateData, setActiveTab }) {
       const days = ['Mån', 'Tis', 'Ons', 'Tors', 'Fre', 'Lör', 'Sön'];
-      const [activeWeek, setActiveWeek] = useState('current'); 
+      const [activeWeek, setActiveWeek] = useState('current');
+      const [subTab, setSubTab] = useState('menu'); // 'menu' eller 'recipes'
+
+      // Recept state
+      const [showRecipeModal, setShowRecipeModal] = useState(false);
+      const [recipeTitle, setRecipeTitle] = useState('');
+      const [recipeCategory, setRecipeCategory] = useState('Vardag');
+      const [tasteRating, setTasteRating] = useState(5);
+      const [easeRating, setEaseRating] = useState(5);
+      const [recipeIngredients, setRecipeIngredients] = useState('');
+      const [selectingForDay, setSelectingForDay] = useState(null); // Om man väljer recept till en dag
+
       const handleChange = (day, field, value) => {
         updateData('meals', prev => ({
             ...prev,
@@ -901,31 +906,173 @@
         }));
       };
 
+      const handleSaveRecipe = (e) => {
+          e.preventDefault();
+          if(!recipeTitle.trim()) return;
+          const newRecipe = {
+              id: generateId(),
+              title: recipeTitle,
+              category: recipeCategory,
+              taste: Number(tasteRating),
+              ease: Number(easeRating),
+              ingredients: recipeIngredients
+          };
+          updateData('recipes', [...recipes, newRecipe]);
+          setRecipeTitle(''); setRecipeIngredients(''); setShowRecipeModal(false);
+      };
+
+      const deleteRecipe = (id) => {
+          updateData('recipes', recipes.filter(r => r.id !== id));
+      };
+
+      const selectRecipeForDay = (recipe) => {
+          if (selectingForDay) {
+              handleChange(selectingForDay, 'title', recipe.title);
+              setSelectingForDay(null);
+          }
+      };
+
       return (
-        <div className="p-4 pb-32 h-full overflow-y-auto max-w-xl mx-auto">
-          <div className="bg-gradient-to-br from-[#E55835] to-[#f07b5d] rounded-3xl p-6 text-white shadow-lg mb-6">
-            <h2 className="text-2xl font-black mb-1 flex items-center gap-3"><Utensils size={24}/> Matsedel</h2>
-            <p className="text-white/90 text-sm font-bold mt-1">Planera veckans middagar.</p>
+        <div className="p-4 pb-32 h-full overflow-y-auto max-w-xl mx-auto space-y-6">
+          <div className="bg-gradient-to-br from-[#E55835] to-[#f07b5d] rounded-3xl p-6 text-white shadow-lg">
+            <h2 className="text-2xl font-black mb-1 flex items-center gap-3"><Utensils size={24}/> Mat & Recept</h2>
+            <p className="text-white/90 text-sm font-bold mt-1">Planera veckomenyn och spara familjens favoriter.</p>
           </div>
-          <div className="flex bg-[#F7F4EE] rounded-2xl p-1 mb-6 border shadow-inner">
-             <button onClick={() => setActiveWeek('current')} className={`flex-1 py-2.5 text-sm font-black rounded-xl ${activeWeek === 'current' ? 'bg-white shadow-sm text-[#E55835]' : 'text-[#1D2538]/50'}`}>Denna vecka</button>
-             <button onClick={() => setActiveWeek('next')} className={`flex-1 py-2.5 text-sm font-black rounded-xl ${activeWeek === 'next' ? 'bg-white shadow-sm text-[#1D2538]' : 'text-[#1D2538]/50'}`}>Nästa vecka</button>
+
+          <div className="flex bg-[#F7F4EE] rounded-2xl p-1 border shadow-inner">
+             <button onClick={() => setSubTab('menu')} className={`flex-1 py-2.5 text-sm font-black rounded-xl ${subTab === 'menu' ? 'bg-white shadow-sm text-[#E55835]' : 'text-[#1D2538]/50'}`}>📅 Matsedel</button>
+             <button onClick={() => setSubTab('recipes')} className={`flex-1 py-2.5 text-sm font-black rounded-xl ${subTab === 'recipes' ? 'bg-white shadow-sm text-[#1D2538]' : 'text-[#1D2538]/50'}`}>📖 Receptbank ({recipes.length})</button>
           </div>
-          <div className="space-y-4">
-            {days.map(day => (
-              <div key={day} className="bg-white p-4 rounded-3xl shadow-sm border">
-                <div className="flex items-center gap-4">
-                  <span className="font-black text-[#1D2538]/50 w-10 uppercase text-sm">{day}</span>
-                  <input type="text" value={meals[activeWeek]?.[day]?.title || ''} onChange={(e) => handleChange(day, 'title', e.target.value)} placeholder="Vad ska vi äta?" className="flex-1 bg-[#F7F4EE] px-4 py-3 rounded-2xl text-sm font-bold outline-none text-[#1D2538]" />
-                </div>
+
+          {subTab === 'menu' ? (
+              <div>
+                  <div className="flex bg-[#F7F4EE] rounded-xl p-1 mb-6 border">
+                     <button onClick={() => setActiveWeek('current')} className={`flex-1 py-2 text-xs font-black rounded-lg ${activeWeek === 'current' ? 'bg-white shadow-sm text-[#E55835]' : 'text-[#1D2538]/50'}`}>Denna vecka</button>
+                     <button onClick={() => setActiveWeek('next')} className={`flex-1 py-2 text-xs font-black rounded-lg ${activeWeek === 'next' ? 'bg-white shadow-sm text-[#1D2538]' : 'text-[#1D2538]/50'}`}>Nästa vecka</button>
+                  </div>
+                  <div className="space-y-4">
+                    {days.map(day => (
+                      <div key={day} className="bg-white p-4 rounded-3xl shadow-sm border flex flex-col gap-2">
+                        <div className="flex items-center gap-4">
+                          <span className="font-black text-[#1D2538]/50 w-10 uppercase text-sm">{day}</span>
+                          <input type="text" value={meals[activeWeek]?.[day]?.title || ''} onChange={(e) => handleChange(day, 'title', e.target.value)} placeholder="Vad ska vi äta?" className="flex-1 bg-[#F7F4EE] px-4 py-3 rounded-2xl text-sm font-bold outline-none text-[#1D2538]" />
+                          <button onClick={() => setSelectingForDay(day)} title="Välj från receptbanken" className="bg-[#581625]/10 text-[#581625] p-3 rounded-2xl hover:bg-[#581625]/20 shrink-0"><BookOpen size={18}/></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Välj recept modal/lista vid klick */}
+                  {selectingForDay && (
+                      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                          <div className="bg-white rounded-3xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto space-y-4 shadow-2xl">
+                              <div className="flex justify-between items-center">
+                                  <h3 className="font-black text-lg">Välj recept för {selectingForDay}</h3>
+                                  <button onClick={() => setSelectingForDay(null)} className="p-2"><X size={20}/></button>
+                              </div>
+                              {recipes.length === 0 ? (
+                                  <p className="text-sm font-bold text-gray-400 text-center py-6">Inga sparade recept ännu. Gå till Receptbanken för att lägga till!</p>
+                              ) : (
+                                  <div className="space-y-2">
+                                      {recipes.map(r => (
+                                          <div key={r.id} onClick={() => selectRecipeForDay(r)} className="p-3 bg-[#F7F4EE] rounded-2xl cursor-pointer hover:bg-[#E55835]/10 flex justify-between items-center">
+                                              <div>
+                                                  <div className="font-black text-[#1D2538]">{r.title}</div>
+                                                  <div className="text-xs font-bold text-gray-500">Smak: {r.taste}/5 | Enkelhet: {r.ease}/5</div>
+                                              </div>
+                                              <span className="text-xs font-black bg-[#E55835] text-white px-3 py-1.5 rounded-xl">Välj</span>
+                                          </div>
+                                      ))}
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+                  )}
               </div>
-            ))}
-          </div>
+          ) : (
+              <div>
+                  <button onClick={() => setShowRecipeModal(true)} className="w-full bg-[#1D2538] text-white py-4 rounded-3xl font-black text-sm shadow-md mb-6 flex justify-center items-center gap-2">
+                      <Plus size={18} /> Spara nytt recept
+                  </button>
+
+                  <div className="space-y-4">
+                      {recipes.length === 0 ? (
+                          <div className="bg-white p-8 rounded-3xl text-center border font-bold text-sm text-gray-400">
+                              Inga recept sparade än. Klicka ovan för att bygga upp familjens receptbank!
+                          </div>
+                      ) : (
+                          recipes.map(r => (
+                              <div key={r.id} className="bg-white p-5 rounded-3xl shadow-sm border space-y-2">
+                                  <div className="flex justify-between items-start">
+                                      <div>
+                                          <span className="text-[10px] font-black uppercase bg-[#E55835]/10 text-[#E55835] px-2.5 py-1 rounded-lg">{r.category}</span>
+                                          <h3 className="font-black text-xl text-[#1D2538] mt-1">{r.title}</h3>
+                                      </div>
+                                      <button onClick={() => deleteRecipe(r.id)} className="text-gray-300 hover:text-red-600"><Trash2 size={18}/></button>
+                                  </div>
+                                  <div className="flex gap-4 pt-1 text-xs font-black text-[#1D2538]/70">
+                                      <span className="flex items-center gap-1">⭐ Smak: {r.taste}/5</span>
+                                      <span className="flex items-center gap-1">⚡ Enkelhet: {r.ease}/5</span>
+                                  </div>
+                                  {r.ingredients && <p className="text-xs font-semibold text-gray-500 mt-2 bg-[#F7F4EE] p-3 rounded-2xl"><strong>Ingredienser:</strong> {r.ingredients}</p>}
+                              </div>
+                          ))
+                      )}
+                  </div>
+
+                  {/* Skapa recept modal */}
+                  {showRecipeModal && (
+                      <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+                          <form onSubmit={handleSaveRecipe} className="bg-white rounded-t-[2.5rem] sm:rounded-3xl p-6 w-full max-w-lg space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+                              <h3 className="font-black text-xl text-[#1D2538]">Spara recept</h3>
+                              <input value={recipeTitle} onChange={e => setRecipeTitle(e.target.value)} placeholder="Receptets namn (t.ex. Lasagne)" className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold outline-none" required />
+                              
+                              <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                      <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Kategori</label>
+                                      <select value={recipeCategory} onChange={e => setRecipeCategory(e.target.value)} className="w-full bg-[#F7F4EE] px-3 py-2.5 rounded-2xl font-bold text-sm outline-none">
+                                          <option>Vardag</option><option>Helg</option><option>Snabblagat</option><option>Barnens favorit</option>
+                                      </select>
+                                  </div>
+                                  <div>
+                                      <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Smakbetyg (1-5)</label>
+                                      <select value={tasteRating} onChange={e => setTasteRating(e.target.value)} className="w-full bg-[#F7F4EE] px-3 py-2.5 rounded-2xl font-bold text-sm outline-none">
+                                          <option value="5">⭐⭐⭐⭐⭐ (5/5)</option>
+                                          <option value="4">⭐⭐⭐⭐ (4/5)</option>
+                                          <option value="3">⭐⭐⭐ (3/5)</option>
+                                          <option value="2">⭐⭐ (2/5)</option>
+                                          <option value="1">⭐ (1/5)</option>
+                                      </select>
+                                  </div>
+                              </div>
+
+                              <div>
+                                  <label className="text-[10px] font-black uppercase text-gray-400 block mb-1">Enkelhet (1-5)</label>
+                                  <select value={easeRating} onChange={e => setEaseRating(e.target.value)} className="w-full bg-[#F7F4EE] px-3 py-2.5 rounded-2xl font-bold text-sm outline-none">
+                                      <option value="5">⚡⚡⚡⚡⚡ Extremt enkelt</option>
+                                      <option value="4">⚡⚡⚡⚡ Enkelt</option>
+                                      <option value="3">⚡⚡⚡ Medel</option>
+                                      <option value="2">⚡⚡ Lite pilligt</option>
+                                      <option value="1">⚡ Avancerat</option>
+                                  </select>
+                              </div>
+
+                              <textarea value={recipeIngredients} onChange={e => setRecipeIngredients(e.target.value)} placeholder="Ingredienser / Anteckningar..." className="w-full bg-[#F7F4EE] px-4 py-3 rounded-2xl font-bold text-sm outline-none resize-none" rows="3"></textarea>
+
+                              <div className="flex gap-2 pt-2">
+                                  <button type="submit" className="flex-1 bg-[#581625] text-white py-3.5 rounded-2xl font-black">Spara recept</button>
+                                  <button type="button" onClick={() => setShowRecipeModal(false)} className="px-5 bg-gray-100 text-gray-600 rounded-2xl font-bold">Avbryt</button>
+                              </div>
+                          </form>
+                      </div>
+                  )}
+              </div>
+          )}
         </div>
       );
     }
 
-    // --- 6. CYKELKOLLEN (MED HORMONKURVOR OCH INSIKTER) ---
+    // --- 6. CYKELKOLLEN ---
     function HealthTracker({ logs, members, updateData, setActiveTab, localProfileId, settings }) {
       const trackedMemberId = settings.cycleTrackerMemberId;
       const trackedMember = members.find(m => m.id === trackedMemberId);
@@ -983,13 +1130,11 @@
         <div className="p-4 pb-32 h-full overflow-y-auto max-w-xl mx-auto space-y-6">
           <button onClick={() => setActiveTab('menu')} className="text-[#1D2538]/50 font-bold text-sm flex items-center gap-1"><ChevronDown className="rotate-90" size={16}/> Tillbaka</button>
           
-          {/* HEADER & GRAF-INSPIRATION */}
           <div className="bg-gradient-to-br from-[#F2C4C4] to-[#f4d5d5] rounded-3xl p-6 text-[#581625] shadow-lg relative overflow-hidden">
              <div className="absolute -top-10 -right-10 w-40 h-40 bg-white rounded-full opacity-30 blur-3xl"></div>
              <h2 className="text-3xl font-black mb-1">Cykeldag {cycleDay || 1}</h2>
              <p className="text-[#581625]/80 text-sm font-bold">{currentPhase} - {trackedMember.name}</p>
 
-             {/* Hormonkurva SVG Visualisering */}
              <div className="mt-6 bg-white/40 backdrop-blur-md rounded-2xl p-4 relative overflow-hidden">
                  <div className="flex justify-between text-[10px] font-black uppercase text-[#581625]/60 mb-2">
                      <span>Mens</span><span>Follikulär</span><span>Ägglossning</span><span>Luteal</span>
@@ -997,7 +1142,6 @@
                  <svg viewBox="0 0 500 120" className="w-full h-24 overflow-visible">
                      <path d="M 0 100 Q 80 90, 150 70 T 300 30 T 450 80 T 500 100" fill="none" stroke="#E55835" strokeWidth="3" opacity="0.8"/>
                      <path d="M 0 110 Q 120 100, 250 50 T 400 90 T 500 110" fill="none" stroke="#89B4E5" strokeWidth="3" opacity="0.8"/>
-                     {/* Markör för idag */}
                      <circle cx={Math.min(480, Math.max(20, (cycleDay || 1) * 17))} cy="65" r="7" fill="#581625" className="animate-pulse" />
                  </svg>
                  <div className="flex justify-center mt-2">
@@ -1006,7 +1150,6 @@
              </div>
           </div>
 
-          {/* DAGENS INSIKTER (Inspirerat av bilderna) */}
           <div className="bg-white rounded-3xl p-5 shadow-sm border space-y-4">
               <h3 className="font-black text-lg text-[#1D2538]">Dagens insikter</h3>
               <div className="grid grid-cols-2 gap-3">
@@ -1021,7 +1164,6 @@
               </div>
           </div>
 
-          {/* LOGGNINGS-FORMULÄR (Endast om det är din egen profil) */}
           {isTrackingMe ? (
               <form onSubmit={handleSave} className="bg-white p-5 rounded-3xl shadow-sm border space-y-4">
                 <h3 className="font-black text-lg text-[#1D2538]">{editingId ? 'Ändra logg' : 'Logga dagens mående'}</h3>
@@ -1188,15 +1330,15 @@
           case 'calendar': return <Calendar events={data.events} members={data.members} updateData={updateData} editItemId={editItemId} setEditItemId={setEditItemId} />;
           case 'todo': return <TodoList todos={data.todos} members={data.members} updateData={updateData} editItemId={editItemId} setEditItemId={setEditItemId} />;
           case 'menu': return <Menu setActiveTab={setActiveTab} />;
-          case 'meals': return <MealPlanner meals={data.meals} updateData={updateData} setActiveTab={setActiveTab} />;
+          case 'meals': return <MealPlanner meals={data.meals} recipes={data.recipes} updateData={updateData} setActiveTab={setActiveTab} />;
           case 'settings_family': return <SettingsFamily members={data.members} settings={data.settings} updateData={updateData} setActiveTab={setActiveTab} localProfileId={localProfileId} />;
-          case 'health': return <HealthTracker logs={data.healthLogs} members={data.members} settings={data.settings} updateData={updateData} setActiveTab={setActiveTab} localProfileId={localProfileId} settings={data.settings} />;
+          case 'health': return <HealthTracker logs={data.healthLogs} members={data.members} updateData={updateData} setActiveTab={setActiveTab} localProfileId={localProfileId} settings={data.settings} />;
           case 'child_dev': return <ChildDevelopment members={data.members} setActiveTab={setActiveTab} />;
           default: return <Dashboard events={data.events} todos={data.todos} shoppingItems={data.shoppingItems} healthLogs={data.healthLogs} weatherConfig={data.settings.weather} setActiveTab={setActiveTab} members={data.members} settings={data.settings} meals={data.meals} localProfileId={localProfileId} onEditItem={handleEditItemRequest} />;
         }
       };
 
-      const getHeaderTitle = () => ({ dashboard:'Familjehubb', shopping:'Inköp', calendar:'Kalender', todo:'Att göra', menu:'Mer', meals:'Matsedel', settings_family:'Inställningar', health:'Cykelkollen', child_dev:'Utveckling' })[activeTab] || 'Familjehubb';
+      const getHeaderTitle = () => ({ dashboard:'Familjehubb', shopping:'Inköp', calendar:'Kalender', todo:'Att göra', menu:'Mer', meals:'Mat & Recept', settings_family:'Inställningar', health:'Cykelkollen', child_dev:'Utveckling' })[activeTab] || 'Familjehubb';
 
       return (
         <div className="flex flex-col h-screen w-full bg-[#F7F4EE] relative overflow-hidden font-sans">
